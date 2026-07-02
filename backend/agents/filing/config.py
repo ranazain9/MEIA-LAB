@@ -13,8 +13,8 @@ class FilingConfig(BaseModel):
 
     # SEC EDGAR
     edgar_user_agent: str = Field(
-        default="MEIA/0.1 (earnings-analysis)",
-        description="User-Agent header for SEC EDGAR API requests.",
+        default="MEIA-LAB meia@example.com",
+        description="User-Agent header for SEC EDGAR API requests (Name Email).",
     )
     edgar_base_url: str = "https://efts.sec.gov/LATEST"
     filing_types: list[str] = Field(
@@ -30,6 +30,11 @@ class FilingConfig(BaseModel):
     chroma_collection: str = "sec_filings"
     chroma_persist_dir: str = "./data/chromadb"
     embedding_model: str = "BAAI/bge-base-en-v1.5"
+    embedding_provider: str = Field(
+        default="hf",
+        description="LangChain embedding provider (hf/local).",
+    )
+    embedding_device: str = Field(default="cpu", description="Device used for embeddings.")
 
     # RAG
     retrieval_top_k: int = Field(default=10, ge=1)

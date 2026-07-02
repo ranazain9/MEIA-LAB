@@ -13,8 +13,12 @@ class OrchestratorConfig(BaseModel):
 
     # LLM
     llm_model: str = Field(
-        default="meta-llama/Llama-3.1-70B-Instruct",
+        default="gpt-4o-mini",
         description="LLM for reasoning, synthesis, and report generation.",
+    )
+    llm_provider: str = Field(
+        default="aimlapi",
+        description="LangChain provider for the reasoning model (aimlapi/openai/hf/local).",
     )
     device: str = "cuda"
     max_new_tokens: int = Field(default=4096, ge=128)

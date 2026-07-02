@@ -19,11 +19,11 @@ class ASRConfig(BaseModel):
         description="Whisper model variant to load.",
     )
     device: str = Field(
-        default="cuda",
+        default="cpu",
         description="Compute device (cuda / cpu).",
     )
     compute_type: str = Field(
-        default="float16",
+        default="float32",
         description="Precision for inference (float16 / int8 / float32).",
     )
 
@@ -40,7 +40,7 @@ class ASRConfig(BaseModel):
     max_speakers: int | None = None
     hf_token: str | None = Field(
         default=None,
-        description="HuggingFace token for pyannote diarization models.",
+        description="HuggingFace token for pyannote diarization models. Reads from the environment if not provided.",
     )
 
     # Tone analysis

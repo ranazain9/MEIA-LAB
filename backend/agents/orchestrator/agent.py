@@ -8,12 +8,21 @@ their outputs into a unified Analyst Intelligence Brief.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
 from backend.agents.base import BaseAgent, AgentInput, AgentOutput
+from backend.agents.base.schemas import IntelligenceReport
+from backend.agents.langchain_utils import build_llm
 from backend.agents.orchestrator.config import OrchestratorConfig
+from backend.agents.orchestrator.pipeline import dispatch_pipeline, kpi_label, kpi_value
+from backend.agents.orchestrator.processors import (
+    EXECUTIVE_SUMMARY_PROMPT,
+    ReportSection,
+    detect_risks,
+    format_report_markdown,
+)
+from backend.agents.orchestrator.utils import format_prompt, truncate_to_token_limit
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +45,7 @@ class OrchestratorAgent(BaseAgent):
         super().__init__(config)
         self._orch_config = OrchestratorConfig(**(config or {}))
         self._llm = None
-        self._graph = None  # LangGraph state graph
+        self._graph = None
         self._agent_registry = None
 
     @property
@@ -47,46 +56,51 @@ class OrchestratorAgent(BaseAgent):
         """Inject the agent registry for dispatching to sub-agents."""
         self._agent_registry = registry
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
     async def _initialize_impl(self) -> None:
         """Load the LLM and build the LangGraph workflow."""
         logger.info(
-            "Orchestrator: loading LLM=%s", self._orch_config.llm_model
+            "Orchestrator: loading LLM=%s provider=%s",
+            self._orch_config.llm_model,
+            self._orch_config.llm_provider,
         )
-        # TODO: Load Llama 3.1 model
-        # TODO: Build LangGraph state graph
+        self._llm = build_llm(
+            self._orch_config.llm_model,
+            temperature=self._orch_config.temperature,
+            provider=self._orch_config.llm_provider,
+        )
+        from backend.agents.orchestrator.graph import build_meia_graph
+
+        self._graph = build_meia_graph(
+            self._agent_registry,
+            parallel=self._orch_config.parallel_agents,
+        )
+        if self._graph is None:
+            logger.warning("Orchestrator: failed to build LangGraph workflow.")
 
     async def _process_impl(self, agent_input: AgentInput) -> AgentOutput:
-        """
-        Run the full orchestration pipeline.
-
-        Expected input payload keys:
-            - audio_path (str): Earnings call audio.
-            - slides_path (str): Earnings presentation.
-            - ticker (str): Company ticker symbol.
-
-        Returns AgentOutput with data keys:
-            - executive_summary (str)
-            - tone_analysis (dict)
-            - consistency_score (float)
-            - risk_factors (list[dict])
-            - slide_speech_comparison (list[dict])
-            - historical_comparison (dict)
-            - full_report (str): Complete Analyst Intelligence Brief.
-        """
+        """Run the full orchestration pipeline."""
         payload = agent_input.payload
 
-        # Step 1: Dispatch to sub-agents
-        sub_outputs = await self._dispatch_agents(agent_input)
+        if self._graph is not None:
+            initial_state = {
+                "audio_path": payload.get("audio_path", ""),
+                "slides_path": payload.get("slides_path", ""),
+                "ticker": payload.get("ticker", ""),
+                "session_id": str(agent_input.session_id) if agent_input.session_id else "",
+            }
+            final_state = await self._graph.ainvoke(initial_state)
+            merged = final_state.get("merged_context", {})
+        else:
+            merged = await dispatch_pipeline(
+                self._agent_registry,
+                audio_path=payload.get("audio_path", ""),
+                slides_path=payload.get("slides_path", ""),
+                ticker=payload.get("ticker", ""),
+                session_id=agent_input.session_id,
+                parallel=self._orch_config.parallel_agents,
+                agent_timeout_seconds=self._orch_config.agent_timeout_seconds,
+            )
 
-        # Step 2: Merge outputs
-        merged = self._merge_outputs(sub_outputs)
-
-        # Step 3: Synthesize with LLM
-        # TODO: Run LLM synthesis via LangGraph
         report = await self._generate_report(merged, payload)
 
         return AgentOutput(
@@ -104,109 +118,205 @@ class OrchestratorAgent(BaseAgent):
             },
         )
 
-    # ------------------------------------------------------------------
-    # Internal orchestration
-    # ------------------------------------------------------------------
-
-    async def _dispatch_agents(
-        self, agent_input: AgentInput
-    ) -> Dict[str, AgentOutput]:
-        """Dispatch work to ASR, Vision, and Filing agents."""
-        if self._agent_registry is None:
-            raise RuntimeError("Agent registry not set on orchestrator.")
-
-        tasks: Dict[str, Any] = {}
-        payload = agent_input.payload
-
-        # Build per-agent inputs
-        if payload.get("audio_path"):
-            asr_input = AgentInput(
-                session_id=agent_input.session_id,
-                payload={"audio_path": payload["audio_path"]},
-            )
-            tasks["asr_alignment"] = asr_input
-
-        if payload.get("slides_path"):
-            vision_input = AgentInput(
-                session_id=agent_input.session_id,
-                payload={"slides_path": payload["slides_path"]},
-            )
-            tasks["vision_analysis"] = vision_input
-
-        if payload.get("ticker"):
-            filing_input = AgentInput(
-                session_id=agent_input.session_id,
-                payload={"ticker": payload["ticker"]},
-            )
-            tasks["filing_crosscheck"] = filing_input
-
-        # Execute
-        if self._orch_config.parallel_agents:
-            results = await self._run_parallel(tasks)
-        else:
-            results = await self._run_sequential(tasks)
-
-        return results
-
-    async def _run_parallel(
-        self, tasks: Dict[str, AgentInput]
-    ) -> Dict[str, AgentOutput]:
-        """Run agents concurrently with timeout."""
-        async def _run_one(name: str, inp: AgentInput) -> tuple[str, AgentOutput]:
-            agent = self._agent_registry.get(name)
-            output = await asyncio.wait_for(
-                agent.process(inp),
-                timeout=self._orch_config.agent_timeout_seconds,
-            )
-            return name, output
-
-        coros = [_run_one(n, i) for n, i in tasks.items()]
-        results = await asyncio.gather(*coros, return_exceptions=True)
-
-        outputs: Dict[str, AgentOutput] = {}
-        for r in results:
-            if isinstance(r, Exception):
-                logger.error("Agent failed: %s", r)
-            else:
-                outputs[r[0]] = r[1]
-        return outputs
-
-    async def _run_sequential(
-        self, tasks: Dict[str, AgentInput]
-    ) -> Dict[str, AgentOutput]:
-        """Run agents one at a time."""
-        outputs: Dict[str, AgentOutput] = {}
-        for name, inp in tasks.items():
-            agent = self._agent_registry.get(name)
-            outputs[name] = await agent.process(inp)
-        return outputs
-
-    def _merge_outputs(
-        self, outputs: Dict[str, AgentOutput]
-    ) -> Dict[str, Any]:
-        """Combine all agent outputs into a single context dict."""
-        merged: Dict[str, Any] = {}
-        for name, output in outputs.items():
-            merged[name] = output.data
-        return merged
-
     async def _generate_report(
         self,
         merged: Dict[str, Any],
         payload: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Use the LLM to synthesize the final intelligence report."""
-        # TODO: Build prompts and run LLM inference
-        # TODO: Structure output into report sections
-        return {
-            "executive_summary": "",
-            "tone_analysis": {},
-            "consistency_score": 0.0,
-            "risk_factors": [],
-            "slide_speech_comparison": [],
-            "historical_comparison": {},
-            "full_report": "",
-        }
+        """Synthesize a structured intelligence report from sub-agent outputs."""
+        ticker = payload.get("ticker") or "the company"
+        asr_data = merged.get("asr_alignment", {}) or {}
+        vision_data = merged.get("vision_analysis", {}) or {}
+        filing_data = merged.get("filing_crosscheck", {}) or {}
+
+        transcript = asr_data.get("transcript", [])
+        tone_analysis = asr_data.get("tone_analysis", [])
+        kpis = vision_data.get("kpis", [])
+        guidance = vision_data.get("guidance", [])
+        verification = filing_data.get("verification_results", [])
+        flagged = filing_data.get("flagged_discrepancies", [])
+        consistency_score = filing_data.get("consistency_score", 0.0)
+        historical = filing_data.get("historical_comparison", {})
+
+        transcript_text = " ".join(
+            segment.get("text", "") for segment in transcript if isinstance(segment, dict)
+        ).strip()
+        kpi_text = ", ".join(
+            f"{kpi_label(item)}={kpi_value(item)}"
+            for item in kpis
+            if isinstance(item, dict) and kpi_value(item)
+        )
+        guidance_text = ". ".join(
+            item if isinstance(item, str) else item.get("text", "")
+            for item in guidance
+            if (isinstance(item, str) and item) or (isinstance(item, dict) and item.get("text"))
+        )
+
+        filing_summary = (
+            f"Consistency score: {consistency_score:.2f}; "
+            f"verified {len(verification)} claims; "
+            f"flagged {len(flagged)} discrepancies."
+        )
+
+        executive_summary = ""
+        if self._llm is not None:
+            try:
+                prompt = format_prompt(
+                    EXECUTIVE_SUMMARY_PROMPT,
+                    transcript_summary=truncate_to_token_limit(transcript_text[:800]),
+                    slide_summary=truncate_to_token_limit(
+                        f"KPIs: {kpi_text}. Guidance: {guidance_text}"[:800]
+                    ),
+                    filing_summary=filing_summary,
+                )
+                response = self._llm.invoke(prompt)
+                executive_summary = getattr(response, "content", str(response)).strip()
+            except Exception as exc:
+                logger.warning("LLM executive summary failed: %s", exc)
+
+        if not executive_summary:
+            summary_parts = [f"{ticker} earnings call analysis"]
+            if transcript_text:
+                summary_parts.append(transcript_text[:220])
+            if kpi_text:
+                summary_parts.append(f"Key slide metrics: {kpi_text}.")
+            if guidance_text:
+                summary_parts.append(guidance_text[:220])
+            executive_summary = " ".join(part for part in summary_parts if part).strip()
+        if not executive_summary:
+            executive_summary = (
+                f"{ticker} earnings call review completed with structured multimodal analysis."
+            )
+
+        risk_factors = self._build_risk_factors(verification, flagged, filing_data)
+        if self._orch_config.include_risk_detection and self._llm is not None:
+            llm_risks = await detect_risks(merged, self._llm)
+            for factor in llm_risks:
+                risk_factors.append(
+                    {
+                        "label": factor.category,
+                        "description": factor.description,
+                        "severity": factor.severity,
+                    }
+                )
+
+        slide_speech_comparison: List[Dict[str, Any]] = []
+        for item in kpis:
+            if not isinstance(item, dict):
+                continue
+            slide_speech_comparison.append(
+                {
+                    "slide_metric": f"{kpi_label(item)}={kpi_value(item)}",
+                    "speech_reference": transcript_text[:160] or "No transcript excerpt available",
+                    "status": "reviewed",
+                }
+            )
+
+        sections = [
+            ReportSection(title="Executive Summary", content=executive_summary, order=1),
+            ReportSection(
+                title="Consistency Score",
+                content=f"{consistency_score:.2f}",
+                order=2,
+            ),
+            ReportSection(
+                title="Key Risks",
+                content="\n".join(
+                    f"- {r['label']}: {r['description']}" for r in risk_factors
+                )
+                or "No material risks identified.",
+                order=3,
+            ),
+        ]
+        if kpi_text:
+            sections.append(
+                ReportSection(title="Key Financial Metrics", content=kpi_text, order=4)
+            )
+
+        full_report = await format_report_markdown(sections)
+        full_report = f"# {ticker} Analyst Intelligence Brief\n\n{full_report}"
+
+        report = IntelligenceReport(
+            executive_summary=executive_summary,
+            tone_analysis={
+                "speaker_count": len(
+                    [
+                        item
+                        for item in tone_analysis
+                        if isinstance(item, dict) and item.get("speaker")
+                    ]
+                ),
+                "segments": tone_analysis,
+            },
+            consistency_score=float(consistency_score),
+            risk_factors=risk_factors,
+            slide_speech_comparison=slide_speech_comparison,
+            historical_comparison=historical or {},
+            full_report=full_report,
+        )
+
+        return report.model_dump()
+
+    def _build_risk_factors(
+        self,
+        verification: List[Any],
+        flagged: List[Any],
+        filing_data: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Derive rule-based risk factors from filing verification output."""
+        if flagged:
+            return [
+                {
+                    "label": "Filing mismatch",
+                    "description": (
+                        f"{len(flagged)} claim(s) inconsistent with SEC filing evidence."
+                    ),
+                    "severity": "high",
+                }
+            ]
+
+        if verification:
+            inconsistent = [
+                item
+                for item in verification
+                if isinstance(item, dict)
+                and (
+                    item.get("is_consistent") is False
+                    or item.get("status") == "flagged"
+                )
+            ]
+            if inconsistent:
+                return [
+                    {
+                        "label": "Filing mismatch",
+                        "description": "One or more claims were flagged during filing verification.",
+                        "severity": "high",
+                    }
+                ]
+            return [
+                {
+                    "label": "Consistency check",
+                    "description": "Reviewed statements were consistent with available filing evidence.",
+                    "severity": "low",
+                }
+            ]
+
+        if filing_data:
+            return [
+                {
+                    "label": "Limited verification",
+                    "description": "Filing agent ran but no claims were available to verify.",
+                    "severity": "medium",
+                }
+            ]
+
+        return [
+            {
+                "label": "Insufficient evidence",
+                "description": "No filing verification results were available for this run.",
+                "severity": "medium",
+            }
+        ]
 
     async def _shutdown_impl(self) -> None:
         self._llm = None

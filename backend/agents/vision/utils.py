@@ -48,5 +48,15 @@ def resize_for_vlm(
     Resize an image to fit within VLM input constraints while
     preserving aspect ratio. Returns path to resized image.
     """
-    # TODO: Implement with Pillow
-    return image_path
+    try:
+        from PIL import Image
+        
+        with Image.open(image_path) as img:
+            img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+            
+            resized_path = image_path.replace(Path(image_path).suffix, f"_resized{Path(image_path).suffix}")
+            img.save(resized_path)
+            return resized_path
+    except Exception as exc:
+        logger.error("Failed to resize image %s: %s", image_path, exc)
+        return image_path

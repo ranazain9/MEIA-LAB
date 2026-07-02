@@ -1,0 +1,1 @@
+"""MEIA FastAPI application."""

@@ -9,84 +9,80 @@ Uses LangGraph for structured, resumable agent workflows.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict
+from uuid import UUID
+
+from backend.agents.orchestrator.pipeline import dispatch_pipeline
 
 logger = logging.getLogger(__name__)
 
 
-# ------------------------------------------------------------------
-# State definition
-# ------------------------------------------------------------------
+class MEIAState(TypedDict, total=False):
+    """Shared state that flows through the LangGraph workflow."""
 
-@dataclass
-class MEIAState:
-    """
-    Shared state that flows through the LangGraph workflow.
+    audio_path: str
+    slides_path: str
+    ticker: str
+    session_id: str
 
-    Each node reads from and writes to this state.
-    """
+    asr_output: Dict[str, Any]
+    vision_output: Dict[str, Any]
+    filing_output: Dict[str, Any]
 
-    # Inputs
-    audio_path: str = ""
-    slides_path: str = ""
-    ticker: str = ""
-    session_id: str = ""
+    merged_context: Dict[str, Any]
+    risk_factors: List[Dict[str, Any]]
+    report_sections: List[Dict[str, Any]]
+    final_report: str
 
-    # Agent outputs
-    asr_output: Dict[str, Any] = field(default_factory=dict)
-    vision_output: Dict[str, Any] = field(default_factory=dict)
-    filing_output: Dict[str, Any] = field(default_factory=dict)
-
-    # Synthesized
-    merged_context: Dict[str, Any] = field(default_factory=dict)
-    risk_factors: List[Dict[str, Any]] = field(default_factory=list)
-    report_sections: List[Dict[str, Any]] = field(default_factory=list)
-    final_report: str = ""
-
-    # Metadata
-    errors: List[str] = field(default_factory=list)
-    current_step: str = "pending"
+    errors: List[str]
+    current_step: str
 
 
-# ------------------------------------------------------------------
-# Graph builder (placeholder)
-# ------------------------------------------------------------------
+def build_meia_graph(agent_registry: Any = None, *, parallel: bool = True) -> Any:
+    """Build the LangGraph state graph for the MEIA pipeline."""
+    try:
+        from langgraph.graph import END, START, StateGraph
 
-def build_meia_graph(agent_registry: Any = None) -> Any:
-    """
-    Build the LangGraph state graph for the MEIA pipeline.
+        def _normalize_session_id(value: Any) -> Optional[UUID]:
+            if value in (None, ""):
+                return None
+            if isinstance(value, UUID):
+                return value
+            if isinstance(value, str):
+                try:
+                    return UUID(value)
+                except ValueError:
+                    return None
+            return None
 
-    Nodes:
-        - dispatch_agents: Fan-out to ASR, Vision, Filing
-        - merge_results: Combine agent outputs
-        - detect_risks: Analyze for anomalies
-        - generate_report: LLM synthesis
-        - finalize: Format and return
+        async def dispatch_agents_node(state: MEIAState) -> MEIAState:
+            logger.info("LangGraph: dispatch_agents_node")
+            if not agent_registry:
+                return {"errors": ["agent_registry not provided"]}
 
-    Edges:
-        dispatch_agents → merge_results → detect_risks →
-        generate_report → finalize
-    """
-    # TODO: Implement with langgraph.graph.StateGraph
-    # from langgraph.graph import StateGraph
-    #
-    # graph = StateGraph(MEIAState)
-    # graph.add_node("dispatch_agents", dispatch_agents_node)
-    # graph.add_node("merge_results", merge_results_node)
-    # graph.add_node("detect_risks", detect_risks_node)
-    # graph.add_node("generate_report", generate_report_node)
-    # graph.add_node("finalize", finalize_node)
-    #
-    # graph.add_edge("dispatch_agents", "merge_results")
-    # graph.add_edge("merge_results", "detect_risks")
-    # graph.add_edge("detect_risks", "generate_report")
-    # graph.add_edge("generate_report", "finalize")
-    #
-    # graph.set_entry_point("dispatch_agents")
-    # graph.set_finish_point("finalize")
-    #
-    # return graph.compile()
+            merged = await dispatch_pipeline(
+                agent_registry,
+                audio_path=state.get("audio_path", ""),
+                slides_path=state.get("slides_path", ""),
+                ticker=state.get("ticker", ""),
+                session_id=_normalize_session_id(state.get("session_id")),
+                parallel=parallel,
+            )
 
-    logger.warning("LangGraph workflow not yet implemented — returning None.")
-    return None
+            return {
+                "asr_output": merged.get("asr_alignment", {}),
+                "vision_output": merged.get("vision_analysis", {}),
+                "filing_output": merged.get("filing_crosscheck", {}),
+                "merged_context": merged,
+                "current_step": "finalize",
+            }
+
+        graph = StateGraph(MEIAState)
+        graph.add_node("dispatch_agents", dispatch_agents_node)
+        graph.add_edge(START, "dispatch_agents")
+        graph.add_edge("dispatch_agents", END)
+
+        return graph.compile()
+    except Exception as exc:
+        logger.error("Failed to build LangGraph: %s", exc)
+        return None

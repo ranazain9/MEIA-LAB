@@ -91,8 +91,36 @@ async def detect_risks(
     llm: Any = None,
 ) -> List[RiskFactor]:
     """Identify risks and anomalies from combined agent outputs."""
-    # TODO: Implement risk detection logic + optional LLM call
-    return []
+    if llm is None:
+        logger.warning("No LLM provided for risk detection.")
+        return []
+
+    try:
+        from langchain_core.prompts import PromptTemplate
+        import json
+        
+        prompt = PromptTemplate.from_template(RISK_DETECTION_PROMPT)
+        # Format the data into a string for the prompt
+        data_str = json.dumps(merged_data, indent=2)
+        # We cap the data length to avoid exceeding context windows if necessary
+        formatted_prompt = prompt.format(merged_data=data_str[:10000])
+        
+        response = llm.invoke(formatted_prompt)
+        content = getattr(response, "content", str(response))
+        
+        # Very basic parsing, in reality this should use structured output (e.g. JSON output parser)
+        factors = []
+        if content:
+            factors.append(RiskFactor(
+                category="LLM_Detected_Risk",
+                description=content[:200] + "...",
+                severity="medium",
+                source_agent="orchestrator",
+            ))
+        return factors
+    except Exception as exc:
+        logger.error("Failed to detect risks: %s", exc)
+        return []
 
 
 async def format_report_markdown(
