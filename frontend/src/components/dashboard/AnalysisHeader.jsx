@@ -1,4 +1,4 @@
-import { Download, ExternalLink, Plus } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "../layout/ToastProvider.jsx";
 
@@ -20,9 +20,6 @@ export function AnalysisHeader({ analysis }) {
       </div>
       <div className="analysis-actions">
         <span className="verified-pill"><span /> Verified Analysis</span>
-        <button className="button secondary" type="button" onClick={() => notify("Extracted data editor disabled in demo")}>
-          <Plus size={16} /> Add Extracted Data
-        </button>
         <Link className="button secondary" to="/evidence">
           <ExternalLink size={16} /> Open Evidence
         </Link>

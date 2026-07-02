@@ -5,7 +5,7 @@ export function ClaimVerificationPreview({ items }) {
     <section className="section-block">
       <div className="section-heading-row">
         <div>
-          <p className="section-number">03 / Verification</p>
+          <p className="small-label">Verification</p>
           <h2>Claim Verification</h2>
           <p className="section-description">Management statements cross-checked against slides and filings.</p>
         </div>

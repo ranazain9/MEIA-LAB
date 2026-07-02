@@ -7,7 +7,7 @@ export function AnalystBriefPreview({ brief }) {
 
   return (
     <section className="section-block">
-      <p className="section-number">06 / Brief</p>
+      <p className="small-label">Brief</p>
       <h2>Analyst Brief Preview</h2>
       <div className="brief-preview-card">
         <div>

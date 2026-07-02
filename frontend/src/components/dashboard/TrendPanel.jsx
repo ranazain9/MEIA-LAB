@@ -19,7 +19,7 @@ export function TrendPanel({ analysis }) {
 
   return (
     <section className="section-block">
-      <p className="section-number">02 / Trends</p>
+      <p className="small-label">Trends</p>
       <h2>Historical Analytics</h2>
       <p className="section-description">
         Quarter-over-quarter movement across verification, risk, and communication signals.

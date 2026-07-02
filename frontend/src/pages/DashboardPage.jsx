@@ -37,7 +37,7 @@ export function DashboardPage() {
       <AnalysisHeader analysis={data.analysis} />
       <div className="dashboard-page">
         <section className="hero-copy">
-          <p className="section-number">Dashboard</p>
+          <p className="small-label">Dashboard</p>
           <h1>Earnings Intelligence</h1>
           <p>AI-verified analysis of audio, slides, and official filings for AMD Q2 2026 earnings.</p>
         </section>
@@ -45,7 +45,7 @@ export function DashboardPage() {
         <SummaryCard analysis={data.analysis} />
 
         <section className="section-block">
-          <p className="section-number">01 / Performance</p>
+          <p className="small-label">Performance</p>
           <h2>Performance Overview</h2>
           <p className="section-description">Core verification, risk, and confidence indicators for this earnings call.</p>
           <div className="metric-grid">
@@ -60,7 +60,7 @@ export function DashboardPage() {
         <RiskMonitor risks={data.risks} />
 
         <section className="section-block">
-          <p className="section-number">05 / Pipeline</p>
+          <p className="small-label">Pipeline</p>
           <h2>Agent & Source Status</h2>
           <p className="section-description">Parallel agent execution and latest source quality from the current earnings analysis.</p>
           <div className="agent-grid">

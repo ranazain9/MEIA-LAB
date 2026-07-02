@@ -1,7 +1,7 @@
 export function RiskMonitor({ risks }) {
   return (
     <section className="section-block">
-      <p className="section-number">04 / Risk</p>
+      <p className="small-label">Risk</p>
       <h2>Risk Monitor</h2>
       <p className="section-description">
         Findings flagged across financial, guidance, communication, and verification dimensions.
