@@ -194,18 +194,40 @@ async def embed_and_store(
     metadata: Dict[str, Any],
     collection: Any,
     embedding_model: Any,
-) -> None:
+    *,
+    chroma_collection: str = "sec_filings",
+    chroma_persist_dir: str = "./data/chromadb",
+) -> Any:
     """Embed text chunks and upsert into ChromaDB."""
     if not collection:
         logger.warning("No ChromaDB collection provided.")
-        return
+        return collection
 
     metadatas = [metadata for _ in chunks]
     try:
         collection.add_texts(texts=chunks, metadatas=metadatas)
         logger.info("Added %d chunks to ChromaDB", len(chunks))
+        return collection
     except Exception as exc:
-        logger.error("Failed to add texts to ChromaDB: %s", exc)
+        if "dimension" not in str(exc).lower():
+            logger.error("Failed to add texts to ChromaDB: %s", exc)
+            return collection
+
+        logger.warning("ChromaDB dimension mismatch while storing; recreating collection.")
+        try:
+            from backend.agents.filing.chroma_store import recreate_vector_store
+
+            collection = recreate_vector_store(
+                chroma_collection,
+                chroma_persist_dir,
+                embedding_model,
+            )
+            collection.add_texts(texts=chunks, metadatas=metadatas)
+            logger.info("Added %d chunks to ChromaDB after reset", len(chunks))
+            return collection
+        except Exception as retry_exc:
+            logger.error("Failed to add texts to ChromaDB after reset: %s", retry_exc)
+            return collection
 
 
 def _claim_matches_evidence(claimed_value: str, evidence: str) -> bool:

@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 
 from backend.agents.base import BaseAgent, AgentInput, AgentOutput
 from backend.agents.asr.config import ASRConfig
-from backend.agents.asr.processors import build_transformers_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -43,21 +42,16 @@ class ASRAgent(BaseAgent):
     # ------------------------------------------------------------------
 
     async def _initialize_impl(self) -> None:
-        """Load a Hugging Face Whisper pipeline suited for ROCm/AMD acceleration."""
-        model_name = getattr(self._asr_config, "model_name", None) or self._asr_config.whisper_model
-        self._model = build_transformers_pipeline(
-            model_name=model_name,
-            device=self._asr_config.device,
-            compute_type=self._asr_config.compute_type,
-            batch_size=self._asr_config.batch_size,
-        )
-        if self._model is None:
-            logger.warning("ASR pipeline could not be initialized; transcription will be unavailable until dependencies are installed.")
-        logger.info(
-            "ASR Agent: loading model=%s device=%s",
-            model_name,
-            self._asr_config.device,
-        )
+        """Initialize the Groq client for transcription."""
+        import os
+        from groq import AsyncGroq
+        api_key = self._asr_config.groq_api_key or os.getenv("GROQ_API_KEY")
+        if not api_key:
+            logger.warning("GROQ_API_KEY is not set. ASR transcription will fail.")
+        self._model = AsyncGroq(api_key=api_key)
+        logger.info("ASR Agent: Groq client initialized using whisper-large-v3 model.")
+
+
 
     async def _process_impl(self, agent_input: AgentInput) -> AgentOutput:
         """
@@ -91,12 +85,19 @@ class ASRAgent(BaseAgent):
             )
 
             # Step 1: Transcription
-            segments = await transcribe_audio(
-                audio_path=audio_path,
-                model=self._model,
-                language=self._asr_config.language,
-                batch_size=self._asr_config.batch_size
-            )
+            try:
+                segments = await transcribe_audio(
+                    audio_path=audio_path,
+                    model=self._model,
+                    language=self._asr_config.language,
+                    batch_size=self._asr_config.batch_size
+                )
+            except Exception:
+                logger.exception(
+                    "Audio transcription failed",
+                    extra={"file": audio_path, "stage": "ASR"},
+                )
+                segments = []
 
             # Step 2: Alignment (Using basic whisper timestamps for now instead of whisperx)
             segments = await align_transcript(segments, audio_path, None)
@@ -129,7 +130,10 @@ class ASRAgent(BaseAgent):
                 alignment_data.append(sa_dict)
 
         except Exception as exc:
-            logger.error("Error in ASRAgent pipeline: %s", exc)
+            logger.exception(
+                "ASR pipeline failed",
+                extra={"file": audio_path, "stage": "ASR"},
+            )
             return AgentOutput(
                 request_id=agent_input.request_id,
                 agent_name=self.agent_name,

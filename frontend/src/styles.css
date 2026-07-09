@@ -1305,3 +1305,36 @@ table {
   outline: 2px solid #111;
   outline-offset: 3px;
 }
+
+.data-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 8px;
+  width: fit-content;
+}
+
+.data-source-badge--live {
+  background: rgba(84, 112, 71, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(84, 112, 71, 0.2);
+}
+
+.data-source-badge--demo {
+  background: rgba(119, 113, 106, 0.1);
+  color: var(--muted);
+  border: 1px solid rgba(119, 113, 106, 0.2);
+}
+
+.data-source-badge--demo a {
+  text-decoration: underline;
+  cursor: pointer;
+  color: var(--text);
+}
+

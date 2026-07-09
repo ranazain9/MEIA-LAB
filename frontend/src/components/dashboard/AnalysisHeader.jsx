@@ -14,12 +14,18 @@ export function AnalysisHeader({ analysis }) {
         </div>
         <div className="analysis-meta">
           <span>Analysis</span>
-          <strong>{analysis.company} · {analysis.period}</strong>
+          <strong>
+            {analysis.company} - {analysis.period}
+          </strong>
           <span>{analysis.status}</span>
+          {analysis.generated ? <span>{analysis.generated}</span> : null}
         </div>
       </div>
       <div className="analysis-actions">
-        <span className="verified-pill"><span /> Verified Analysis</span>
+        <span className="verified-pill">
+          <span />
+          Verified Analysis
+        </span>
         <Link className="button secondary" to="/evidence">
           <ExternalLink size={16} /> Open Evidence
         </Link>

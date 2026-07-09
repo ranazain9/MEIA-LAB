@@ -76,6 +76,14 @@ async def _run_agent(
     timeout: Optional[float] = None,
 ) -> AgentOutput:
     agent = agent_registry.get(name)
+    if hasattr(agent, "is_ready") and not agent.is_ready:
+        logger.warning("Agent %s is not ready; skipping execution", name)
+        return AgentOutput(
+            request_id=agent_input.request_id,
+            agent_name=name,
+            success=False,
+            errors=[f"Agent '{name}' is not ready."],
+        )
     if timeout:
         return await asyncio.wait_for(agent.process(agent_input), timeout=timeout)
     return await agent.process(agent_input)
@@ -111,17 +119,29 @@ async def dispatch_pipeline(
     outputs: Dict[str, AgentOutput] = {}
 
     if phase1:
+        logger.info("Starting phase 1 agents: %s", ", ".join(phase1.keys()))
         if parallel and len(phase1) > 1:
             tasks = [
                 _run_agent(agent_registry, name, inp, agent_timeout_seconds)
                 for name, inp in phase1.items()
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            for name, result in zip(phase1.keys(), results):
-                if isinstance(result, Exception):
-                    logger.error("Agent %s failed: %s", name, result)
+            for name, result_or_exc in zip(phase1.keys(), results):
+                if isinstance(result_or_exc, Exception):
+                    logger.error(
+                        "Pipeline agent failed",
+                        extra={"agent": name, "stage": name},
+                        exc_info=(type(result_or_exc), result_or_exc, result_or_exc.__traceback__),
+                    )
+                    outputs[name] = AgentOutput(
+                        request_id=phase1[name].request_id,
+                        agent_name=name,
+                        success=False,
+                        data={"error": f"Agent '{name}' failed: {result_or_exc}"},
+                        errors=[str(result_or_exc)],
+                    )
                 else:
-                    outputs[name] = result
+                    outputs[name] = result_or_exc
         else:
             for name, inp in phase1.items():
                 try:
@@ -129,7 +149,25 @@ async def dispatch_pipeline(
                         agent_registry, name, inp, agent_timeout_seconds
                     )
                 except Exception as exc:
-                    logger.error("Agent %s failed: %s", name, exc)
+                    logger.exception(
+                        "Pipeline agent failed",
+                        extra={"agent": name, "stage": name},
+                    )
+                    outputs[name] = AgentOutput(
+                        request_id=inp.request_id,
+                        agent_name=name,
+                        success=False,
+                        data={"error": f"Agent '{name}' failed: {exc}"},
+                        errors=[str(exc)],
+                    )
+
+        succeeded = [n for n, o in outputs.items() if o.success]
+        failed = [n for n, o in outputs.items() if not o.success]
+        logger.info(
+            "Phase 1 complete: succeeded=%s, failed=%s",
+            succeeded or "none",
+            failed or "none",
+        )
 
     asr_data = outputs["asr_alignment"].data if "asr_alignment" in outputs else {}
     vision_data = outputs["vision_analysis"].data if "vision_analysis" in outputs else {}
@@ -139,6 +177,7 @@ async def dispatch_pipeline(
         claims = extract_claims_from_outputs(asr_data, vision_data)
         logger.info("Extracted %d claims for filing verification", len(claims))
         try:
+            logger.info("Starting filing verification for ticker=%s", ticker)
             filing_output = await _run_agent(
                 agent_registry,
                 "filing_crosscheck",
@@ -153,8 +192,11 @@ async def dispatch_pipeline(
                 agent_timeout_seconds,
             )
             filing_data = filing_output.data
-        except Exception as exc:
-            logger.error("Filing agent failed: %s", exc)
+        except Exception:
+            logger.exception(
+                "Filing agent failed",
+                extra={"agent": "filing_crosscheck", "stage": "FILING"},
+            )
 
     return {
         "asr_alignment": asr_data,

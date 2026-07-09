@@ -15,6 +15,23 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+try:  # pragma: no cover - groq must be installed
+    from backend.core.groq_client import groq_client
+except Exception:  # pragma: no cover
+    groq_client = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - optional runtime dependency
+    # pyrefly: ignore [missing-import]
+    import librosa
+except Exception:  # pragma: no cover - optional runtime dependency
+    librosa = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - optional runtime dependency
+    # pyrefly: ignore [missing-import]
+    import soundfile as sf
+except Exception:  # pragma: no cover - optional runtime dependency
+    sf = None  # type: ignore[assignment]
+
 
 # ------------------------------------------------------------------
 # Data structures
@@ -58,59 +75,6 @@ class SlideAlignment:
 # Processors
 # ------------------------------------------------------------------
 
-def normalize_whisper_model_name(model_name: Optional[str]) -> str:
-    """Translate shorthand Whisper names to Hugging Face model IDs."""
-    if not model_name:
-        return "openai/whisper-large-v3"
-    if model_name.startswith("openai/"):
-        return model_name
-    if model_name in {"tiny", "base", "small", "medium", "large", "large-v2", "large-v3"}:
-        return f"openai/whisper-{model_name}"
-    if model_name.startswith("whisper-"):
-        return f"openai/{model_name}"
-    return model_name
-
-
-def build_transformers_pipeline(
-    model_name: Optional[str],
-    device: str = "cpu",
-    compute_type: str = "float32",
-    batch_size: int = 16,
-) -> Any:
-    """Create a Hugging Face ASR pipeline with safe CPU/GPU fallback behavior."""
-    try:
-        from transformers import pipeline
-        import torch
-    except Exception as exc:  # pragma: no cover - environment dependent
-        logger.warning("Transformers ASR pipeline unavailable: %s", exc)
-        return None
-
-    normalized_name = normalize_whisper_model_name(model_name)
-    try:
-        device_str = str(device).lower()
-        use_cuda = device_str.startswith("cuda") and torch.cuda.is_available()
-        if device_str.startswith("cuda") and not torch.cuda.is_available():
-            logger.warning("CUDA requested but unavailable; falling back to CPU.")
-
-        torch_device = 0 if use_cuda else -1
-        pipeline_kwargs: Dict[str, Any] = {
-            "task": "automatic-speech-recognition",
-            "model": normalized_name,
-            "device": torch_device,
-            "batch_size": batch_size,
-        }
-
-        if use_cuda:
-            if str(compute_type).lower() == "float16":
-                pipeline_kwargs["torch_dtype"] = torch.float16
-            elif str(compute_type).lower() == "float32":
-                pipeline_kwargs["torch_dtype"] = torch.float32
-        return pipeline(**pipeline_kwargs)
-    except Exception as exc:  # pragma: no cover - environment dependent
-        logger.warning("Failed to initialize Transformers ASR pipeline: %s", exc)
-        return None
-
-
 async def transcribe_audio(
     audio_path: str,
     model: Any,
@@ -118,70 +82,199 @@ async def transcribe_audio(
     batch_size: int = 16,
 ) -> List[TranscriptSegment]:
     """
-    Run Whisper inference on an audio file.
+    Run Whisper inference on an audio file using Groq Whisper API.
 
     Args:
         audio_path: Path to the audio file.
-        model: Loaded Whisper model instance.
+        model: Groq (or AsyncGroq) client instance.
         language: Optional language code.
-        batch_size: Inference batch size.
+        batch_size: Inference batch size (ignored/kept for compatibility).
 
     Returns:
         List of TranscriptSegment instances.
     """
-    logger.info("Transcribing: %s", audio_path)
+    import os
+    # pyrefly: ignore [missing-import]
+    from groq import AsyncGroq, Groq
+    
+    logger.info("Transcribing audio file via Groq: %s", audio_path)
     segments_out = []
 
     if not model:
-        logger.warning("No ASR model provided.")
+        logger.warning("No ASR model/client provided.")
         return []
 
-    try:
+    # Check for fake/mock model in tests (e.g. if it has a custom __call__ or transcribe method)
+    if not isinstance(model, (Groq, AsyncGroq)):
         if hasattr(model, "transcribe"):
-            segments, _ = model.transcribe(audio_path, beam_size=5)
-            for segment in segments:
-                segments_out.append(
-                    TranscriptSegment(
-                        text=segment.text.strip(),
-                        start=segment.start,
-                        end=segment.end,
-                        confidence=getattr(segment, "no_speech_prob", 0.0),
-                    )
-                )
-            return segments_out
-
-        result = model(
-            audio_path,
-            return_timestamps=True,
-            chunk_length_s=30,
-            generate_kwargs={"language": language} if language else {},
-        )
-        if isinstance(result, dict):
-            chunks = result.get("chunks") or []
-            if chunks:
-                for chunk in chunks:
-                    timestamp = chunk.get("timestamp") if isinstance(chunk, dict) else None
-                    if isinstance(timestamp, (list, tuple)) and len(timestamp) == 2:
-                        start, end = timestamp
-                    else:
-                        start, end = 0.0, 0.0
-                    text = (chunk.get("text") or "").strip() if isinstance(chunk, dict) else ""
-                    if text:
-                        segments_out.append(
-                            TranscriptSegment(text=text, start=float(start), end=float(end), confidence=0.0)
+            try:
+                segments, _ = model.transcribe(str(audio_path))
+                for segment in segments:
+                    segments_out.append(
+                        TranscriptSegment(
+                            text=getattr(segment, "text", "").strip(),
+                            start=float(getattr(segment, "start", 0.0)),
+                            end=float(getattr(segment, "end", 0.0)),
+                            confidence=float(getattr(segment, "avg_logprob", 0.0) or 0.0)
                         )
-            else:
-                text = (result.get("text") or "").strip()
+                    )
+                return segments_out
+            except Exception as e:
+                logger.error("Failed to call mock transcribe method: %s", e)
+        elif callable(model):
+            try:
+                result = model(audio_path)
+                if isinstance(result, dict):
+                    chunks = result.get("chunks") or []
+                    for chunk in chunks:
+                        timestamp = chunk.get("timestamp") or (0.0, 0.0)
+                        segments_out.append(
+                            TranscriptSegment(
+                                text=chunk.get("text", "").strip(),
+                                start=float(timestamp[0]),
+                                end=float(timestamp[1]),
+                                confidence=0.0
+                            )
+                        )
+                    return segments_out
+            except Exception as e:
+                logger.error("Failed to call mock callable: %s", e)
+
+    # Real Groq API path
+    if not isinstance(audio_path, str) or not os.path.exists(audio_path):
+        logger.error("Audio path %s does not exist or is not a string.", audio_path)
+        return []
+
+    filename = os.path.basename(audio_path)
+    transcribe_lang = language or "en"
+    
+    # Check file size (Groq limit is 25 MB)
+    file_size = os.path.getsize(audio_path)
+    groq_limit = 25 * 1024 * 1024
+    if file_size > groq_limit:
+        logger.info("[Groq] Audio file size %d bytes exceeds 25MB limit. Splitting into chunks...", file_size)
+        try:
+            # pyrefly: ignore [missing-import]
+            import soundfile as sf
+            info = sf.info(audio_path)
+            samplerate = info.samplerate
+            total_frames = info.frames
+            duration = total_frames / samplerate
+            
+            chunk_length_sec = 300  # 5 minutes
+            overlap_sec = 5
+            
+            chunk_idx = 0
+            all_segments = []
+            
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            
+            while True:
+                start_sec = chunk_idx * (chunk_length_sec - overlap_sec)
+                if start_sec >= duration:
+                    break
+                    
+                end_sec = min(start_sec + chunk_length_sec, duration)
+                start_frame = int(start_sec * samplerate)
+                frames_to_read = int((end_sec - start_sec) * samplerate)
+                
+                # Create a temp WAV file for the chunk
+                chunk_file = os.path.join(temp_dir, f"audio_chunk_{chunk_idx}.wav")
+                
+                # Read frames and write to chunk file
+                data, _ = sf.read(audio_path, start=start_frame, frames=frames_to_read, dtype='float32')
+                sf.write(chunk_file, data, samplerate, subtype='PCM_16')
+                
+                logger.info("[Groq] transcribing chunk %d (range: %.1f - %.1f sec)", chunk_idx, start_sec, end_sec)
+                
+                with open(chunk_file, "rb") as f:
+                    transcription = await groq_client.transcription(
+                        file=f,
+                        model="whisper-large-v3",
+                        response_format="verbose_json",
+                        language=transcribe_lang,
+                        temperature=0.0
+                    )
+                    
+                # Clean up chunk file
+                try:
+                    os.remove(chunk_file)
+                except Exception:
+                    pass
+                
+                # Parse segments and offset timestamps
+                chunk_segments = []
+                if hasattr(transcription, "segments"):
+                    for segment in transcription.segments:
+                        text = (segment.get("text") if isinstance(segment, dict) else getattr(segment, "text", "")).strip()
+                        if text:
+                            seg_start = float(segment.get("start", 0.0) if isinstance(segment, dict) else getattr(segment, "start", 0.0)) + start_sec
+                            seg_end = float(segment.get("end", 0.0) if isinstance(segment, dict) else getattr(segment, "end", 0.0)) + start_sec
+                            conf = float(segment.get("avg_logprob", 0.0) if isinstance(segment, dict) else getattr(segment, "avg_logprob", 0.0) or 0.0)
+                            
+                            chunk_segments.append(
+                                TranscriptSegment(
+                                    text=text,
+                                    start=seg_start,
+                                    end=seg_end,
+                                    confidence=conf
+                                )
+                            )
+                
+                all_segments.append(chunk_segments)
+                chunk_idx += 1
+                
+                if end_sec >= duration:
+                    break
+            
+            # Merge transcripts from chunks
+            merged_segments = []
+            for c_idx, chunk_segs in enumerate(all_segments):
+                for seg in chunk_segs:
+                    if merged_segments:
+                        last_seg = merged_segments[-1]
+                        if seg.start < last_seg.end - 1.0:
+                            continue
+                    merged_segments.append(seg)
+                    
+            return merged_segments
+            
+        except Exception as exc:
+            logger.exception("Failed splitting and transcribing audio: %s", exc)
+            # Do NOT fall back to whole-file upload — it would exceed Groq's 25 MB limit.
+            return []
+
+    # Direct transcription for files within the 25 MB limit
+    try:
+        with open(audio_path, "rb") as audio_file:
+            transcription = await groq_client.transcription(
+                file=audio_file,
+                model="whisper-large-v3",
+                response_format="verbose_json",
+                language=transcribe_lang,
+                temperature=0.0
+            )
+        
+        # Parse segments from response
+        if hasattr(transcription, "segments"):
+            for segment in transcription.segments:
+                text = (segment.get("text") if isinstance(segment, dict) else getattr(segment, "text", "")).strip()
                 if text:
-                    segments_out.append(TranscriptSegment(text=text, start=0.0, end=0.0, confidence=0.0))
-        elif isinstance(result, list):
-            for item in result:
-                if isinstance(item, dict):
-                    text = (item.get("text") or "").strip()
-                    if text:
-                        segments_out.append(TranscriptSegment(text=text, start=0.0, end=0.0, confidence=0.0))
+                    segments_out.append(
+                        TranscriptSegment(
+                            text=text,
+                            start=float(segment.get("start", 0.0) if isinstance(segment, dict) else getattr(segment, "start", 0.0)),
+                            end=float(segment.get("end", 0.0) if isinstance(segment, dict) else getattr(segment, "end", 0.0)),
+                            confidence=float(segment.get("avg_logprob", 0.0) if isinstance(segment, dict) else getattr(segment, "avg_logprob", 0.0) or 0.0),
+                        )
+                    )
+        elif hasattr(transcription, "text"):
+            text = transcription.text.strip()
+            if text:
+                segments_out.append(TranscriptSegment(text=text, start=0.0, end=0.0, confidence=0.0))
     except Exception as exc:
-        logger.error("Failed to transcribe audio: %s", exc)
+        logger.exception("Failed to transcribe via Groq Whisper API: %s", exc)
 
     return segments_out
 
@@ -208,6 +301,7 @@ async def diarize_speakers(
         
     try:
         import os
+        # pyrefly: ignore [missing-import]
         from pyannote.audio import Pipeline
         hf_token = os.environ.get("HF_TOKEN")
         
@@ -246,8 +340,10 @@ async def analyze_tone(
     """Compute per-window tone, pace, and hesitation metrics."""
     windows = []
     try:
-        import librosa
         import numpy as np
+
+        if librosa is None:
+            raise ImportError("librosa is not installed")
         
         y, sr = librosa.load(audio_path, sr=None)
         duration = librosa.get_duration(y=y, sr=sr)

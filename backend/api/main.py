@@ -28,6 +28,10 @@ if str(ROOT_DIR) not in sys.path:
 from backend.service import run_analysis
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=os.getenv("MEIA_LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 app = FastAPI(
     title="MEIA API",
@@ -55,6 +59,7 @@ class JobResponse(BaseModel):
 class JobStatusResponse(BaseModel):
     job_id: str
     status: str
+    current_step: str = ""
     ticker: str = ""
     created_at: str = ""
     completed_at: Optional[str] = None
@@ -74,16 +79,31 @@ async def _save_upload(upload: UploadFile, destination: Path) -> None:
 
 async def _run_job(job_id: str, audio_path: str, slides_path: str, ticker: str) -> None:
     _jobs[job_id]["status"] = "running"
+    _jobs[job_id]["current_step"] = "starting"
+    logger.info("Job %s started for %s", job_id, ticker)
     try:
+        _jobs[job_id]["current_step"] = "analysis"
         result = await run_analysis(audio_path, slides_path, ticker)
-        _jobs[job_id]["status"] = "completed"
+        logger.info(
+            "Orchestrator returned for job %s; result keys=%s",
+            job_id,
+            list(result.keys()) if isinstance(result, dict) else type(result).__name__,
+        )
         _jobs[job_id]["result"] = result
+        _jobs[job_id]["status"] = "completed"
         _jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
+        _jobs[job_id]["current_step"] = "finished"
+        logger.info(
+            "Result stored for job %s (ticker=%s), current_step=finished",
+            job_id,
+            ticker,
+        )
     except Exception as exc:
         logger.exception("Job %s failed", job_id)
         _jobs[job_id]["status"] = "failed"
         _jobs[job_id]["error"] = str(exc)
         _jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
+        _jobs[job_id]["current_step"] = "failed"
     finally:
         temp_root = _jobs[job_id].get("temp_dir")
         if temp_root:
@@ -120,6 +140,7 @@ async def analyze(
     _jobs[job_id] = {
         "status": "pending",
         "ticker": ticker,
+        "current_step": "queued",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "temp_dir": str(temp_dir),
         "result": None,
@@ -148,14 +169,23 @@ async def get_job(job_id: str) -> JobStatusResponse:
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
 
+    result = job.get("result")
+    if job["status"] == "completed" and result is not None:
+        logger.info(
+            "API returning result for job %s, result keys=%s",
+            job_id,
+            list(result.keys()) if isinstance(result, dict) else type(result).__name__,
+        )
+
     return JobStatusResponse(
         job_id=job_id,
         status=job["status"],
+        current_step=job.get("current_step", ""),
         ticker=job.get("ticker", ""),
         created_at=job.get("created_at", ""),
         completed_at=job.get("completed_at"),
         error=job.get("error"),
-        result=job.get("result"),
+        result=result,
     )
 
 

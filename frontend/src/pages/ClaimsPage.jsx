@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Card, DataTable, PageHeader, Skeleton, StatusBadge, Tabs } from "../components/ui/index.js";
-import { getEvidenceItems } from "../services/analysisService.js";
+import { getClaimItems } from "../services/analysisService.js";
 
 const filters = ["All", "Verified", "Needs Review", "Unsupported"];
 
@@ -10,7 +10,7 @@ export function ClaimsPage() {
 
   useEffect(() => {
     let mounted = true;
-    getEvidenceItems().then((data) => {
+    getClaimItems().then((data) => {
       if (mounted) setItems(data);
     });
     return () => {

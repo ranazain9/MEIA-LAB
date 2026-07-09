@@ -102,6 +102,10 @@ class OrchestratorAgent(BaseAgent):
             )
 
         report = await self._generate_report(merged, payload)
+        logger.info(
+            "Orchestrator report generated, keys=%s",
+            list(report.keys()),
+        )
 
         return AgentOutput(
             request_id=agent_input.request_id,
@@ -109,12 +113,24 @@ class OrchestratorAgent(BaseAgent):
             success=True,
             data={
                 "executive_summary": report.get("executive_summary", ""),
+                "transcript": (merged.get("asr_alignment") or {}).get("transcript", []),
+                "slide_analysis": merged.get("vision_analysis") or {},
+                "filing_verification": merged.get("filing_crosscheck") or {},
+                "risks": report.get("risk_factors", []),
+                "confidence": report.get("consistency_score", 0.0),
                 "tone_analysis": report.get("tone_analysis", {}),
                 "consistency_score": report.get("consistency_score", 0.0),
                 "risk_factors": report.get("risk_factors", []),
                 "slide_speech_comparison": report.get("slide_speech_comparison", []),
                 "historical_comparison": report.get("historical_comparison", {}),
                 "full_report": report.get("full_report", ""),
+            },
+            metadata={
+                "initialization_errors": (
+                    self._agent_registry.initialization_errors()
+                    if self._agent_registry and hasattr(self._agent_registry, "initialization_errors")
+                    else {}
+                )
             },
         )
 
@@ -253,6 +269,7 @@ class OrchestratorAgent(BaseAgent):
             slide_speech_comparison=slide_speech_comparison,
             historical_comparison=historical or {},
             full_report=full_report,
+            verification_results=verification,
         )
 
         return report.model_dump()

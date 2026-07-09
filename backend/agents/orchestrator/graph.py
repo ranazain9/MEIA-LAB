@@ -68,6 +68,10 @@ def build_meia_graph(agent_registry: Any = None, *, parallel: bool = True) -> An
                 session_id=_normalize_session_id(state.get("session_id")),
                 parallel=parallel,
             )
+            logger.info(
+                "LangGraph: dispatch_agents_node completed, merged keys=%s",
+                list(merged.keys()),
+            )
 
             return {
                 "asr_output": merged.get("asr_alignment", {}),

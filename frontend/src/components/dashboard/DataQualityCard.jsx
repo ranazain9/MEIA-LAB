@@ -4,9 +4,9 @@ export function DataQualityCard({ quality }) {
       <div className="quality-head">
         <div>
           <h2>Most Recent Data Quality</h2>
-          <p>Snapshot of the current AMD Q2 2026 ingestion.</p>
+          <p>Snapshot of the current analysis ingestion.</p>
         </div>
-        <button className="link-button" type="button">Export Source Data ↗</button>
+        <button className="link-button" type="button">Export Source Data -&gt;</button>
       </div>
       <div className="quality-body">
         <div className="quality-score-block">

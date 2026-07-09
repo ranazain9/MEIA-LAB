@@ -1,26 +1,42 @@
-langchain>=0.2.0
-langchain-core>=0.2.0
-langchain-openai>=0.1.0
+# API server
+fastapi>=0.111.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+python-multipart>=0.0.9,<1.0.0
+pydantic>=2.7.0,<3.0.0
+python-dotenv>=1.0.1,<2.0.0
+
+# HTTP, parsing, and SEC filing retrieval
+httpx>=0.27.0,<1.0.0
+beautifulsoup4>=4.12.3,<5.0.0
+
+# Groq audio/chat client
+groq>=0.9.0,<1.0.0
+
+# LangChain orchestration and providers
+langchain>=0.2.0,<0.4.0
+langchain-core>=0.2.0,<0.4.0
+langchain-community>=0.2.0,<0.4.0
+langchain-openai>=0.1.0,<0.4.0
 langchain-aimlapi>=0.0.1
-langchain-huggingface>=0.0.3
-langchain-community>=0.2.0
-langchain-chroma>=0.1.0
-langchain-text-splitters>=0.2.0
-langgraph>=0.1.0
-chromadb>=0.5.0
-pydantic>=2.0.0
-python-dotenv>=1.0.0
-transformers>=4.41.0
-torch>=2.3.0
-torchaudio>=2.3.0
-accelerate>=0.30.0
-sentencepiece>=0.2.0
-pyannote.audio>=3.1.1
-librosa>=0.10.1
-pdf2image>=1.17.0
-Pillow>=10.2.0
-httpx>=0.27.0
-beautifulsoup4>=4.12.3
-fastapi>=0.111.0
-uvicorn[standard]>=0.30.0
-python-multipart>=0.0.9
+langchain-huggingface>=0.0.3,<1.0.0
+langchain-chroma>=0.1.0,<1.0.0
+langchain-text-splitters>=0.2.0,<1.0.0
+langgraph>=0.1.0,<1.0.0
+chromadb>=0.5.0,<1.0.0
+
+# Audio processing
+librosa>=0.10.1,<1.0.0
+soundfile>=0.12.1,<1.0.0
+numpy>=1.26.0,<3.0.0
+
+# Slide/PDF/image processing
+PyMuPDF>=1.24.0,<2.0.0
+Pillow>=10.2.0,<12.0.0
+
+# Optional heavy local-model packages are intentionally not installed by default.
+# The Railway deployment is optimized for API-backed Groq/AIMLAPI/OpenAI inference.
+# Add these only if you plan to run local model inference inside the container:
+# transformers
+# torch
+# sentence-transformers
+# pyannote.audio

@@ -5,6 +5,8 @@ Filing Agent Configuration
 
 from __future__ import annotations
 
+import os
+
 from pydantic import BaseModel, Field
 
 
@@ -22,19 +24,24 @@ class FilingConfig(BaseModel):
         description="SEC filing types to retrieve.",
     )
     max_filings: int = Field(
-        default=8,
+        default_factory=lambda: int(os.getenv("MEIA_MAX_FILINGS", "2")),
         description="Max historical filings to retrieve per company.",
     )
 
     # Vector store
     chroma_collection: str = "sec_filings"
     chroma_persist_dir: str = "./data/chromadb"
-    embedding_model: str = "BAAI/bge-base-en-v1.5"
-    embedding_provider: str = Field(
-        default="hf",
-        description="LangChain embedding provider (hf/local).",
+    embedding_model: str = Field(
+        default_factory=lambda: os.getenv("MEIA_EMBEDDING_MODEL", "BAAI/bge-base-en-v1.5")
     )
-    embedding_device: str = Field(default="cpu", description="Device used for embeddings.")
+    embedding_provider: str = Field(
+        default_factory=lambda: os.getenv("MEIA_EMBEDDING_PROVIDER", "local"),
+        description="LangChain embedding provider (aimlapi/hf_cloud/openai/hf/local).",
+    )
+    embedding_device: str = Field(
+        default_factory=lambda: os.getenv("MEIA_EMBEDDING_DEVICE", "cpu"),
+        description="Device used for embeddings.",
+    )
 
     # RAG
     retrieval_top_k: int = Field(default=10, ge=1)

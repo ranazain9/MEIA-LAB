@@ -51,7 +51,7 @@ export function Sidebar() {
         <BarChart3 size={18} />
         <div>
           <strong>MEIA v1</strong>
-          <span>AMD · MI300X</span>
+          <span>AMD - MI300X</span>
         </div>
       </div>
     </aside>

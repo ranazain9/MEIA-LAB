@@ -12,6 +12,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from backend.agents.base import BaseAgent, AgentInput, AgentOutput
+from backend.agents.filing.chroma_store import initialize_vector_store
 from backend.agents.filing.config import FilingConfig
 from backend.agents.langchain_utils import build_embeddings
 
@@ -55,11 +56,10 @@ class FilingAgent(BaseAgent):
             device=self._filing_config.embedding_device,
         )
         try:
-            from langchain_chroma import Chroma
-            self._vector_store = Chroma(
-                collection_name=self._filing_config.chroma_collection,
-                embedding_function=self._embedding_model,
-                persist_directory=self._filing_config.chroma_persist_dir,
+            self._vector_store = initialize_vector_store(
+                self._filing_config.chroma_collection,
+                self._filing_config.chroma_persist_dir,
+                self._embedding_model,
             )
             logger.info("ChromaDB initialized successfully.")
         except Exception as exc:
@@ -116,12 +116,16 @@ class FilingAgent(BaseAgent):
                         self._filing_config.chunk_size,
                         self._filing_config.chunk_overlap
                     )
-                    await embed_and_store(
+                    store_result = await embed_and_store(
                         chunks,
                         {"source": filing.url, "type": filing.filing_type, "ticker": ticker},
                         self._vector_store,
-                        self._embedding_model
+                        self._embedding_model,
+                        chroma_collection=self._filing_config.chroma_collection,
+                        chroma_persist_dir=self._filing_config.chroma_persist_dir,
                     )
+                    if store_result is not None:
+                        self._vector_store = store_result
 
             # Step 3: Verify claims
             verification_results = []
@@ -137,6 +141,7 @@ class FilingAgent(BaseAgent):
                 )
                 res_dict = res.__dict__ if hasattr(res, "__dict__") else {}
                 res_dict["status"] = "verified" if res.is_consistent else "flagged"
+                res_dict["source"] = claim.get("source")
                 verification_results.append(res_dict)
                 consistency_sum += res.confidence
                 if not res.is_consistent and res.confidence > 0.5:

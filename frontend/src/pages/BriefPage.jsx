@@ -5,23 +5,26 @@ import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { PageHeader } from "../components/ui/PageHeader.jsx";
 import { Skeleton } from "../components/ui/Skeleton.jsx";
-import { getBrief } from "../services/analysisService.js";
+import { getBrief, getDashboardAnalysis } from "../services/analysisService.js";
 
 export function BriefPage() {
   const [brief, setBrief] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
   const { notify } = useToast();
 
   useEffect(() => {
     let mounted = true;
-    getBrief().then((data) => {
-      if (mounted) setBrief(data);
+    Promise.all([getBrief(), getDashboardAnalysis()]).then(([briefData, dashboardData]) => {
+      if (!mounted) return;
+      setBrief(briefData);
+      setAnalysis(dashboardData.analysis);
     });
     return () => {
       mounted = false;
     };
   }, []);
 
-  if (!brief) {
+  if (!brief || !analysis) {
     return <Skeleton className="brief-skeleton" />;
   }
 
@@ -30,13 +33,13 @@ export function BriefPage() {
       <PageHeader
         eyebrow="Analyst Brief"
         title="Analyst Brief"
-        subtitle="Generated evidence-backed summary for AMD Q2 2026."
+        subtitle={`Generated evidence-backed summary for ${analysis.company} ${analysis.period}.`}
       />
 
       <Card className="document-card">
         <div className="document-toolbar">
           <div>
-            <p className="section-number">AMD · Q2 2026</p>
+            <p className="section-number">{brief.company} - {brief.period}</p>
             <h2>Evidence-backed Intelligence Brief</h2>
           </div>
           <div className="button-row">

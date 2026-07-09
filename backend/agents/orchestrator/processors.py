@@ -126,8 +126,13 @@ async def detect_risks(
 async def format_report_markdown(
     sections: List[ReportSection],
 ) -> str:
-    """Assemble report sections into a formatted Markdown document."""
-    lines = ["# Analyst Intelligence Brief", ""]
+    """Assemble report sections into a formatted Markdown document.
+
+    Note: The caller is responsible for prepending the top-level ``# Ticker
+    Analyst Intelligence Brief`` heading.  This function only renders the
+    section bodies so the heading is never duplicated.
+    """
+    lines = []
     for section in sorted(sections, key=lambda s: s.order):
         lines.append(f"## {section.title}")
         lines.append("")

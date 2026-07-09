@@ -28,7 +28,7 @@ export function ClaimVerificationPreview({ items }) {
                 <td><strong>"{item.claim}"</strong></td>
                 <td><span className={`status-dot ${item.status.toLowerCase().replace(" ", "-")}`} />{item.status}</td>
                 <td>{item.confidence >= 80 ? "High" : item.confidence >= 60 ? "Medium" : "Low"}</td>
-                <td className="mono-muted">{item.location}</td>
+                <td className="mono-muted">{item.source || item.location}</td>
                 <td><Link className="row-action" to="/evidence">Review ↗</Link></td>
               </tr>
             ))}

@@ -29,6 +29,7 @@ class AgentRegistry:
 
     def __init__(self) -> None:
         self._agents: Dict[str, BaseAgent] = {}
+        self._init_errors: Dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Registration
@@ -66,11 +67,17 @@ class AgentRegistry:
     # Lifecycle helpers
     # ------------------------------------------------------------------
 
-    async def initialize_all(self) -> None:
-        """Initialize every registered agent."""
+    async def initialize_all(self) -> Dict[str, str]:
+        """Initialize every registered agent and keep going on failures."""
+        self._init_errors = {}
         for name, agent in self._agents.items():
             logger.info("Initializing agent: %s", name)
-            await agent.initialize()
+            try:
+                await agent.initialize()
+            except Exception as exc:
+                self._init_errors[name] = str(exc)
+                logger.warning("Agent %s failed to initialize: %s", name, exc)
+        return dict(self._init_errors)
 
     async def shutdown_all(self) -> None:
         """Gracefully shut down every registered agent."""
@@ -84,3 +91,7 @@ class AgentRegistry:
             name: await agent.health_check()
             for name, agent in self._agents.items()
         }
+
+    def initialization_errors(self) -> Dict[str, str]:
+        """Return any initialization failures captured during startup."""
+        return dict(self._init_errors)

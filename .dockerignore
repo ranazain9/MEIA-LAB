@@ -1,0 +1,23 @@
+# Docker ignore — keeps build context lean
+.venv/
+.git/
+.gitignore
+.cache/
+.agents/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Frontend artifacts (rebuilt inside Docker)
+frontend/node_modules/
+frontend/dist/
+
+# Data and secrets
+data/
+.env
+
+# Docs
+*.md
+*.docx

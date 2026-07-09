@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional
-
+import os
 from backend.agents.base import BaseAgent, AgentInput, AgentOutput
 from backend.agents.vision.config import VisionConfig
 
@@ -52,8 +52,8 @@ class VisionAgent(BaseAgent):
         from backend.agents.langchain_utils import build_llm
 
         try:
-            provider = os.getenv("MEIA_LLM_PROVIDER", "aimlapi")
-            model_name = os.getenv("MEIA_LLM_MODEL", self._vision_config.model_name)
+            provider = os.getenv("MEIA_VISION_LLM_PROVIDER", os.getenv("MEIA_LLM_PROVIDER", "groq"))
+            model_name = os.getenv("MEIA_VISION_MODEL", self._vision_config.model_name)
             self._model = build_llm(
                 model_name=model_name,
                 temperature=self._vision_config.temperature,
@@ -98,22 +98,73 @@ class VisionAgent(BaseAgent):
 
             temp_dir = tempfile.mkdtemp()
             try:
-                image_paths = await rasterize_slides(
-                    slides_path=slides_path,
-                    output_dir=temp_dir,
-                    dpi=self._vision_config.dpi,
-                )
-
-                analyses = []
-                for i, img_path in enumerate(image_paths[: self._vision_config.max_slides]):
-                    resized_path = resize_for_vlm(img_path)
-                    analysis = await analyze_slide_image(
-                        image_path=resized_path,
-                        model=self._model,
-                        processor=None,
-                        slide_index=i,
+                try:
+                    image_paths = await rasterize_slides(
+                        slides_path=slides_path,
+                        output_dir=temp_dir,
+                        dpi=self._vision_config.dpi,
                     )
-                    analyses.append(analysis)
+                except Exception:
+                    logger.exception(
+                        "Slide extraction failed",
+                        extra={"file": slides_path, "stage": "SLIDE_RASTERIZATION"},
+                    )
+                    image_paths = []
+
+                import asyncio
+                # Gather batch size configuration from environment
+                batch_size = int(os.getenv("MEIA_GROQ_BATCH_SIZE", "4"))
+                
+                # Resize all slide images first
+                resized_paths = []
+                for i, img_path in enumerate(image_paths[: self._vision_config.max_slides]):
+                    try:
+                        resized_path = resize_for_vlm(img_path)
+                    except Exception:
+                        logger.exception(
+                            "Slide resize failed",
+                            extra={"file": img_path, "stage": "SLIDE_RASTERIZATION"},
+                        )
+                        resized_path = img_path
+                    resized_paths.append((i, resized_path))
+
+                # Batch the slide images
+                batches = [resized_paths[j:j + batch_size] for j in range(0, len(resized_paths), batch_size)]
+                
+                # Submit batches to QueueWorkerPool
+                from backend.core.queue_worker import QueueWorkerPool
+                from backend.agents.vision.processors import analyze_slide_batch
+                
+                pool = QueueWorkerPool(worker_count=int(os.getenv("MEIA_GROQ_WORKERS", "2")))
+                
+                tasks = []
+                for b_idx, batch in enumerate(batches):
+                    task = pool.submit(
+                        analyze_slide_batch,
+                        batch=batch,
+                        model=self._model,
+                        batch_index=b_idx,
+                        total_batches=len(batches)
+                    )
+                    tasks.append(task)
+                
+                # Wait for all tasks to complete
+                batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # Shut down the pool workers
+                await pool.shutdown()
+                
+                # Gather SlideAnalysis results
+                analyses = []
+                for res in batch_results:
+                    if isinstance(res, list):
+                        analyses.extend(res)
+                    elif isinstance(res, Exception):
+                        logger.error("Batch task failed: %s", res)
+                
+                # Sort analyses by slide_index to maintain correct order
+                analyses.sort(key=lambda x: x.slide_index)
+
 
                 kpis = await extract_kpis_from_analysis(analyses)
                 tables = await extract_tables_from_analysis(analyses)
@@ -124,14 +175,15 @@ class VisionAgent(BaseAgent):
             finally:
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
-        except Exception as exc:
-            logger.error("Error in VisionAgent pipeline: %s", exc)
-            return AgentOutput(
-                request_id=agent_input.request_id,
-                agent_name=self.agent_name,
-                success=False,
-                errors=[str(exc)],
+        except Exception:
+            logger.exception(
+                "Vision pipeline failed",
+                extra={"file": slides_path, "stage": "SLIDE_RASTERIZATION"},
             )
+            slides_data = []
+            kpis_data = []
+            tables = []
+            guidance = []
 
         return AgentOutput(
             request_id=agent_input.request_id,

@@ -5,18 +5,21 @@ import { PageHeader } from "../components/ui/PageHeader.jsx";
 import { Skeleton } from "../components/ui/Skeleton.jsx";
 import { StatusBadge } from "../components/ui/Badge.jsx";
 import { Tabs } from "../components/ui/Tabs.jsx";
-import { getEvidenceItems } from "../services/analysisService.js";
+import { getDashboardAnalysis, getEvidenceItems } from "../services/analysisService.js";
 
 const filters = ["All", "Verified", "Needs Review", "Unsupported"];
 
 export function EvidencePage() {
   const [items, setItems] = useState([]);
+  const [analysis, setAnalysis] = useState(null);
   const [active, setActive] = useState("All");
 
   useEffect(() => {
     let mounted = true;
-    getEvidenceItems().then((data) => {
-      if (mounted) setItems(data);
+    Promise.all([getEvidenceItems(), getDashboardAnalysis()]).then(([evidenceData, dashboardData]) => {
+      if (!mounted) return;
+      setItems(evidenceData);
+      setAnalysis(dashboardData.analysis);
     });
     return () => {
       mounted = false;
@@ -37,12 +40,16 @@ export function EvidencePage() {
     { key: "location", header: "Location", render: (item) => <span className="mono-muted">{item.location}</span> },
   ];
 
+  if (!analysis) {
+    return <Skeleton className="table-skeleton" />;
+  }
+
   return (
     <div className="page-stack">
       <PageHeader
         eyebrow="Evidence Room"
         title="Evidence Room"
-        subtitle="Verified and flagged claims from AMD Q2 2026 analysis."
+        subtitle={`Verified and flagged claims from ${analysis.company} ${analysis.period}.`}
       />
 
       <Tabs ariaLabel="Evidence status filter" items={filters} onChange={setActive} value={active} />

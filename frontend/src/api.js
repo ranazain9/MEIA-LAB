@@ -19,16 +19,51 @@ export async function startAnalysis({ ticker, audio, slides }) {
   return response.json();
 }
 
-export async function fetchJob(jobId) {
-  const response = await fetch(`${API_BASE}/api/jobs/${jobId}`);
-  if (!response.ok) {
-    throw new Error("Job not found");
+/**
+ * Fetch a single job status with up to `maxRetries` retries on network errors.
+ * Transient failures (e.g. brief server hiccup) will be retried with an
+ * exponential back-off before surfacing as an error.
+ */
+export async function fetchJob(jobId, { maxRetries = 3 } = {}) {
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(`${API_BASE}/api/jobs/${jobId}`);
+      if (!response.ok) {
+        throw new Error(`Job not found (HTTP ${response.status})`);
+      }
+      return response.json();
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        // Exponential back-off: 200ms, 400ms, 800ms
+        await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt));
+      }
+    }
   }
-  return response.json();
+  throw lastError;
 }
 
-export async function pollJob(jobId, { intervalMs = 2000, onUpdate } = {}) {
+/**
+ * Poll a job until it reaches a terminal state (completed | failed).
+ *
+ * @param {string} jobId
+ * @param {object} options
+ * @param {number} [options.intervalMs=2000]   Polling interval in milliseconds.
+ * @param {number} [options.timeoutMs=600000]  Max total wait (default 10 min).
+ * @param {function} [options.onUpdate]        Called on every poll with the latest job.
+ */
+export async function pollJob(
+  jobId,
+  { intervalMs = 2000, timeoutMs = 10 * 60 * 1000, onUpdate } = {}
+) {
+  const deadline = Date.now() + timeoutMs;
+
   while (true) {
+    if (Date.now() > deadline) {
+      throw new Error(`Job ${jobId} timed out after ${timeoutMs / 1000}s`);
+    }
+
     const job = await fetchJob(jobId);
     onUpdate?.(job);
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { AgentStatusCard } from "../components/dashboard/AgentStatusCard.jsx";
 import { AnalystBriefPreview } from "../components/dashboard/AnalystBriefPreview.jsx";
 import { AnalysisHeader } from "../components/dashboard/AnalysisHeader.jsx";
@@ -8,7 +9,7 @@ import { MetricCard } from "../components/dashboard/MetricCard.jsx";
 import { RiskMonitor } from "../components/dashboard/RiskMonitor.jsx";
 import { SummaryCard } from "../components/dashboard/SummaryCard.jsx";
 import { TrendPanel } from "../components/dashboard/TrendPanel.jsx";
-import { getBrief, getDashboardAnalysis, getEvidenceItems } from "../services/analysisService.js";
+import { getBrief, getClaimItems, getDashboardAnalysis, isLiveData } from "../services/analysisService.js";
 
 export function DashboardPage() {
   const [data, setData] = useState(null);
@@ -17,7 +18,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     let mounted = true;
-    Promise.all([getDashboardAnalysis(), getEvidenceItems(), getBrief()]).then(([dashboard, items, briefData]) => {
+    Promise.all([getDashboardAnalysis(), getClaimItems(), getBrief()]).then(([dashboard, items, briefData]) => {
       if (!mounted) return;
       setData(dashboard);
       setEvidence(items);
@@ -39,7 +40,18 @@ export function DashboardPage() {
         <section className="hero-copy">
           <p className="small-label">Dashboard</p>
           <h1>Earnings Intelligence</h1>
-          <p>AI-verified analysis of audio, slides, and official filings for AMD Q2 2026 earnings.</p>
+          <p>
+            AI-verified analysis of audio, slides, and official filings for {data.analysis.company} {data.analysis.period}.
+            Generated {brief.generated}.
+          </p>
+          {isLiveData() ? (
+            <span className="data-source-badge data-source-badge--live">⬤ Live Data</span>
+          ) : (
+            <span className="data-source-badge data-source-badge--demo">
+              Demo Data &mdash;{" "}
+              <Link to="/processing">run a real analysis</Link>
+            </span>
+          )}
         </section>
 
         <SummaryCard analysis={data.analysis} />

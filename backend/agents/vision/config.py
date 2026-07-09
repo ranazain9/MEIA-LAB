@@ -5,6 +5,8 @@ Vision Agent Configuration
 
 from __future__ import annotations
 
+import os
+
 from pydantic import BaseModel, Field
 
 
@@ -13,7 +15,10 @@ class VisionConfig(BaseModel):
 
     # Model
     model_name: str = Field(
-        default="Qwen/Qwen2.5-VL-7B-Instruct",
+        default_factory=lambda: os.getenv(
+            "MEIA_VISION_MODEL",
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+        ),
         description="Vision-Language model to use.",
     )
     device: str = "cuda"

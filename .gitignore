@@ -12,3 +12,14 @@ build/
 .extracted_project_idea.txt
 frontend/node_modules/
 frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Caches
+.cache/

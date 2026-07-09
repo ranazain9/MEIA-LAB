@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  meia:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: meia-lab:latest
+    container_name: meia-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - MEIA_ASR_DEVICE=cpu
+      - MEIA_CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
+    volumes:
+      # Persist ChromaDB vector store data between restarts
+      - meia_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  meia_data:

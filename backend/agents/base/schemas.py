@@ -119,6 +119,7 @@ class IntelligenceReport(BaseModel):
     slide_speech_comparison: List[Dict[str, Any]] = Field(default_factory=list)
     historical_comparison: Dict[str, Any] = Field(default_factory=dict)
     full_report: str = ""
+    verification_results: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class FlaggedItem(BaseModel):
