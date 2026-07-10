@@ -67,6 +67,16 @@ class JobStatusResponse(BaseModel):
     result: Optional[Dict[str, Any]] = None
 
 
+@app.get("/")
+async def root() -> Dict[str, str]:
+    return {
+        "service": "meia",
+        "status": "ok",
+        "docs": "/docs",
+        "health": "/api/health",
+    }
+
+
 async def _save_upload(upload: UploadFile, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("wb") as handle:
