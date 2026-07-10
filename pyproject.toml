@@ -16,8 +16,12 @@ dependencies = [
 	"httpx>=0.27.0,<1.0.0",
 	"beautifulsoup4>=4.12.3,<5.0.0",
 	"groq>=0.9.0,<1.0.0",
-	"langchain>=0.2.0,<0.4.0",
 	"langchain-core>=0.2.0,<0.4.0",
+]
+
+[project.optional-dependencies]
+analysis = [
+	"langchain>=0.2.0,<0.4.0",
 	"langchain-community>=0.2.0,<0.4.0",
 	"langchain-openai>=0.1.0,<0.4.0",
 	"langchain-aimlapi>=0.0.1",
