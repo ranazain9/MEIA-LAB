@@ -1,103 +1,134 @@
 # MEIA-LAB
 
-MEIA-LAB is an end-to-end earnings-call intelligence platform that combines speech recognition, slide analysis, SEC filing retrieval, and report generation into a modular multi-agent workflow.
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](#getting-started)
+[![Backend](https://img.shields.io/badge/backend-FastAPI-009688)](#architecture)
+[![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20Vite-646CFF)](#architecture)
+[![Testing](https://img.shields.io/badge/tests-pytest%20%2B%20unittest-informational)](#testing)
+[![License](https://img.shields.io/badge/license-R%26D-lightgrey)](#license)
 
-## Overview
+MEIA-LAB is a multi-agent earnings-call intelligence platform that cross-checks management commentary against slides and SEC filings to produce evidence-backed analyst insights.
 
-The system is designed to turn earnings-call audio and presentation materials into structured insight by orchestrating multiple specialized agents:
+## Focus
 
-- ASR agent for speech transcription
-- Vision agent for slide-level understanding
-- Filing agent for SEC context and financial validation
-- Orchestrator agent for synthesis and report generation
+- **Role**: AI-assisted financial research workflow
+- **Specialization**: multi-agent orchestration (ASR, vision, filing retrieval, synthesis)
+- **Current focus**: improving reliability, claim-verification accuracy, and production readiness
 
-## Key Features
+## Why MEIA-LAB
 
-- Local and cloud-compatible inference workflow
-- Whisper-based transcription with CPU/GPU fallback
-- Slide analysis through language model-based processing
-- SEC filing retrieval and evidence-backed validation
-- REST API support for local or remote deployment
+Manual earnings-call review is slow and error-prone. MEIA-LAB reduces analysis time by combining:
 
-## Project Structure
+1. speech transcription from call audio,
+2. slide understanding from presentation decks,
+3. filing retrieval and claim validation from SEC sources,
+4. unified synthesis into dashboard metrics and briefs.
+
+## Architecture
 
 ```text
 backend/
   agents/
-    asr/           # Speech transcription
-    vision/        # Slide understanding
-    filing/        # SEC filing retrieval and evidence
-    orchestrator/  # Coordination and report synthesis
-  api/             # FastAPI application
-  service.py       # Shared analysis runner
+    asr/           # Speech transcription and speaker-level analysis
+    vision/        # Slide extraction and semantic understanding
+    filing/        # SEC retrieval, chunking, and claim verification
+    orchestrator/  # Final synthesis and report generation
+  api/             # FastAPI endpoints for job execution and polling
+  service.py       # Shared end-to-end analysis runner
+
+frontend/
+  src/pages/       # Dashboard, evidence room, analyst brief, processing views
+  src/services/    # API adapters and analysis normalization
 ```
+
+## Product Flow
+
+1. Upload ticker + audio + slides
+2. Run asynchronous analysis job
+3. Inspect dashboard health metrics and risk flags
+4. Review claim-level evidence and consistency outcomes
+5. Export analyst-oriented brief
+
+## Demos and Supporting Material
+
+- Hackathon demo script and submission content: [`docs/hackathon_submission_materials.md`](docs/hackathon_submission_materials.md)
+- API-first local run path: [`backend/api/main.py`](backend/api/main.py)
+- End-to-end runner: [`backend/run_agent.py`](backend/run_agent.py)
 
 ## Getting Started
 
 ### Prerequisites
 
 - Python 3.11+
-- Windows, Linux, or macOS
-- A virtual environment (recommended)
+- Node.js 18+
+- Virtual environment tooling
 
-### Installation
+### Backend setup
 
-```powershell
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+source .venv/bin/activate  # Windows PowerShell: .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### Run the CLI
+### Run backend API
 
-```powershell
-python backend/run_agent.py --ticker AMD --audio-path sample.wav --slides-path sample.pdf
-```
-
-### Run the API locally
-
-```powershell
+```bash
 uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-## Model and Hardware Notes
+### Frontend setup and run
 
-The project supports both CPU and GPU-backed execution:
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-- ASR uses Hugging Face Transformers and Whisper
-- CPU fallback is enabled for compatibility on standard Windows machines
-- CUDA-capable systems can use GPU acceleration automatically when available
-- AMD GPU environments can be used for faster transcription and batch processing workloads
+## Testing
 
-## AMD Developer Cloud Usage
+```bash
+# backend
+python -m pytest
+python -m unittest discover -s tests
 
-AMD GPU resources are especially useful for:
+# frontend (production build smoke test)
+cd frontend && npm run build
+```
 
-- faster Whisper transcription on long audio files
-- accelerated embedding generation for filing and retrieval tasks
-- improved performance for repeated batch analysis runs
+## Evidence and Result Signals
 
-A practical deployment pattern is:
+The platform is designed to surface measurable output signals such as:
 
-1. keep the local API/frontend for development and interaction
-2. use AMD Developer Cloud GPUs for heavy inference workloads
-3. route ASR and embedding tasks to the GPU-backed runtime when available
+- claim consistency score,
+- verified vs. unsupported claims,
+- risk-factor extraction,
+- source-linked evidence snippets,
+- generated analyst brief quality.
 
-## Environment Variables
+## Roadmap
 
-Depending on the selected provider, the following environment variables may be used:
+- [ ] Add explicit CI workflows for backend tests and frontend build checks
+- [ ] Expand contract tests between backend outputs and frontend adapters
+- [ ] Improve filing failure visibility (separate "no data" vs "retrieval error")
+- [ ] Harden model/provider configuration for local and cloud environments
+- [ ] Add benchmark tracking for latency and verification precision
 
-- `AIMLAPI_KEY`
-- `OPENAI_API_KEY`
-- `MEIA_LLM_PROVIDER`
-- `MEIA_LLM_MODEL`
-- `MEIA_EMBEDDING_PROVIDER`
+## What We Are Working On Now
 
-## Contributing
+- Stabilizing environment setup across Windows/Linux/macOS
+- Improving reliability of ASR and filing-agent initialization paths
+- Aligning backend output contracts with dashboard/evidence views
 
-Contributions are welcome. Please open an issue or submit a pull request with your improvements.
+## Open to Collaboration
+
+We welcome collaborators on:
+
+- agent reliability and observability,
+- financial claim-verification quality,
+- frontend UX for evidence-driven analyst workflows.
+
+Open an issue or submit a pull request with your proposal.
 
 ## License
 
-This project is intended for research and development use. Please review the repository license before redistribution or commercial use.
-
+This project is intended for research and development use. Review the repository license before redistribution or commercial use.
