@@ -121,7 +121,7 @@ The platform is designed to surface measurable output signals such as:
 
 ## Team
 
-- **You** — **AI Engineer, Team Lead**
+- **Rana zain (ME) ** — **AI Engineer, Team Lead**
 - **Rimsha Talib** (@rimshatalib) — **Frontend**
 - **Vaibhav** (@vaibhavcs99) — **Frontend**
 - **Akhil Nirala** (@akhilnirala01-dotcom) — **UI/UX**
