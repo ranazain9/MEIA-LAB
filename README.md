@@ -119,7 +119,16 @@ The platform is designed to surface measurable output signals such as:
 - Improving reliability of ASR and filing-agent initialization paths
 - Aligning backend output contracts with dashboard/evidence views
 
-## Open to Collaboration
+## Collaboration
+
+### Team Members
+
+- **Me** — AI engineer
+- **Rimsha Talib** — `@rimshatalib` — collaborator
+- **Vaibhav** — frontend developer — `@vaibhavcs99` — collaborator
+- **Akhil Nirala** — UI/UX — `@akhilnirala01-dotcom` — collaborator
+- **Linta** — deployment and presentation — `@lintahabib2-hash` — collaborator
+- **Jim Leston Osoi** — backend developer — `@lestonEth` — collaborator
 
 We welcome collaborators on:
 
