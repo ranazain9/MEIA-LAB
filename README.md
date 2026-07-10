@@ -54,6 +54,27 @@ frontend/
 - API-first local run path: [`backend/api/main.py`](backend/api/main.py)
 - End-to-end runner: [`backend/run_agent.py`](backend/run_agent.py)
 
+## Collaboration
+
+### Team Members
+
+| Name | Role | GitHub |
+| --- | --- | --- |
+| Me | AI engineer | — |
+| Rimsha Talib | collaborator | [@rimshatalib](https://github.com/rimshatalib) |
+| Vaibhav | frontend developer | [@vaibhavcs99](https://github.com/vaibhavcs99) |
+| Akhil Nirala | UI/UX | [@akhilnirala01-dotcom](https://github.com/akhilnirala01-dotcom) |
+| Linta | deployment and presentation | [@lintahabib2-hash](https://github.com/lintahabib2-hash) |
+| Jim Leston Osoi | backend developer | [@lestonEth](https://github.com/lestonEth) |
+
+We welcome collaborators on:
+
+- agent reliability and observability,
+- financial claim-verification quality,
+- frontend UX for evidence-driven analyst workflows.
+
+Open an issue or submit a pull request with your proposal.
+
 ## Getting Started
 
 ### Prerequisites
@@ -118,25 +139,6 @@ The platform is designed to surface measurable output signals such as:
 - Stabilizing environment setup across Windows/Linux/macOS
 - Improving reliability of ASR and filing-agent initialization paths
 - Aligning backend output contracts with dashboard/evidence views
-
-## Collaboration
-
-### Team Members
-
-- **Me** — AI engineer
-- **Rimsha Talib** — `@rimshatalib` — collaborator
-- **Vaibhav** — frontend developer — `@vaibhavcs99` — collaborator
-- **Akhil Nirala** — UI/UX — `@akhilnirala01-dotcom` — collaborator
-- **Linta** — deployment and presentation — `@lintahabib2-hash` — collaborator
-- **Jim Leston Osoi** — backend developer — `@lestonEth` — collaborator
-
-We welcome collaborators on:
-
-- agent reliability and observability,
-- financial claim-verification quality,
-- frontend UX for evidence-driven analyst workflows.
-
-Open an issue or submit a pull request with your proposal.
 
 ## License
 
