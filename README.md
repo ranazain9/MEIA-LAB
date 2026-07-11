@@ -332,9 +332,49 @@ curl http://127.0.0.1:8000/docs
 | "Failed to fetch" | Backend not running | Start: `uvicorn backend.api.main:app --reload` |
 | CORS error | Frontend blocked by backend | Check `MEIA_CORS_ORIGINS` env var |
 | 404 on /api/* | Backend route missing | Verify FastAPI app has `/api/analyze` route |
+| 413 (Payload Too Large) | Files exceed Vercel limit | Use Railway, upgrade Vercel plan, or use Docker |
 | Mock data only | Backend not responding | Check network tab in DevTools |
 
-### Run with Docker
+**Vercel 413 Error Fix:**
+
+If you see `413 Request Entity Too Large` on Vercel:
+
+```json
+// vercel.json (already configured)
+{
+  "functions": {
+    "backend/api/*.py": {
+      "maxDuration": 900,    // 15 min timeout
+      "memory": 3008         // 3GB memory
+    }
+  }
+}
+```
+
+This configuration is already in the repo. If errors persist:
+- ✅ Upgrade to Vercel Pro (higher limits)
+- ✅ Compress audio files before upload
+- ✅ Use Railway instead (no size limits)
+- ✅ Use Docker locally
+
+---
+
+## File Size Recommendations
+
+| Platform | Audio | PDF Slides | Recommended |
+|----------|-------|-----------|-------------|
+| **Local** | Unlimited | Unlimited | ✅ Best for development |
+| **Vercel Free** | <20MB | <10MB | ⚠️ Limited |
+| **Vercel Pro** | <100MB | <50MB | ✅ Good for demos |
+| **Railway** | Unlimited | Unlimited | ✅ Best for production |
+| **Docker** | Unlimited | Unlimited | ✅ Best for local deployment |
+
+**Best Practice:**
+- Use 30-60 min earnings call audio (15-30MB)
+- Use PDF slides (5-15MB)
+- Test locally first, then deploy to Railway or Vercel Pro
+
+---
 
 ```bash
 docker-compose up
@@ -388,7 +428,7 @@ railway up
 
 #### 3. Vercel (Monolithic Deployment - RECOMMENDED)
 
-**Single deployment** — Frontend and Backend on the same Vercel host:
+**Single deployment** — Frontend and Backend on the same Vercel host with support for large file uploads:
 
 ```
 https://meia-lab-69fu-meia.vercel.app/
@@ -396,12 +436,26 @@ https://meia-lab-69fu-meia.vercel.app/
 └─ Backend: FastAPI API (served from /api/*)
 ```
 
-**Configuration:**
+**Configuration for Large Files:**
 
-- `vercel.json` builds the frontend
-- Backend runs alongside as serverless functions
-- Frontend uses **relative paths** for API calls (no CORS issues)
-- All requests go to the same domain
+The `vercel.json` is configured to handle audio and PDF uploads:
+
+```json
+{
+  "functions": {
+    "backend/api/*.py": {
+      "maxDuration": 900,      // 15 min timeout for long analysis
+      "memory": 3008           // 3GB memory for processing
+    }
+  }
+}
+```
+
+This allows:
+- ✅ Audio files up to ~100MB
+- ✅ PDF slide decks up to ~50MB
+- ✅ 15-minute analysis jobs
+- ✅ 3GB memory for ML models
 
 **Setup in Vercel:**
 
@@ -418,9 +472,17 @@ https://meia-lab-69fu-meia.vercel.app/
 **Live:** https://meia-lab-69fu-meia.vercel.app/ ✅
 
 **API Endpoints:**
-- `/api/analyze` — Start analysis job
+- `/api/analyze` — Start analysis job (accepts audio + PDF)
 - `/api/jobs/{job_id}` — Get job status
+- `/api/health` — Health check
 - `/docs` — Swagger UI (for debugging)
+
+**Important Notes:**
+
+- Vercel Pro plan recommended for production (higher limits)
+- Free tier may timeout for files >50MB
+- For very large files (>100MB), use Railway instead
+- All requests automatically route to backend (/api/*) or frontend (everything else)
 
 ---
 

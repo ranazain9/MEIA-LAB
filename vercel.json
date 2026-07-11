@@ -1,4 +1,10 @@
 {
   "buildCommand": "npm --prefix frontend ci && npm --prefix frontend run build",
-  "outputDirectory": "frontend/dist"
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "backend/api/*.py": {
+      "maxDuration": 900,
+      "memory": 3008
+    }
+  }
 }
