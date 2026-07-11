@@ -374,10 +374,10 @@ uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
 # Terminal 2: Frontend 
 cd frontend
 npm run dev
-# http://localhost:5173 connects to http://127.0.0.1:8000
+# http://localhost:5173 connects to http://127.0.0.1:8000 (via Vite proxy)
 ```
 
-#### 2. Railway (Backend Only)
+#### 2. Railway (Backend + Frontend)
 
 Push to main branch; Railway auto-deploys via `railway.json` config.
 
@@ -386,58 +386,52 @@ railway login
 railway up
 ```
 
-#### 3. Vercel (Separate Frontend & Backend Deployments)
+#### 3. Vercel (Monolithic Deployment - RECOMMENDED)
 
-**MEIA-LAB uses TWO separate Vercel deployments that communicate via API:**
+**Single deployment** — Frontend and Backend on the same Vercel host:
 
-| Component | URL | Type | Role |
-|-----------|-----|------|------|
-| **Frontend** | https://meia-lab-69fu-meia.vercel.app | React/Vite | User interface, job submission |
-| **Backend** | https://meia-8d2bpxwi5-meia.vercel.app | FastAPI | Analysis pipeline, job processing |
+```
+https://meia-lab-69fu-meia.vercel.app/
+├─ Frontend: React UI (served from /)
+└─ Backend: FastAPI API (served from /api/*)
+```
 
-**How They Connect:**
+**Configuration:**
 
-1. **Frontend** (React) sends HTTP requests to **Backend** (/api/analyze, /api/jobs/{id})
-2. **Backend CORS** allows the frontend domain:
-   ```python
-   allow_origins=["https://meia-lab-69fu-meia.vercel.app", ...]
+- `vercel.json` builds the frontend
+- Backend runs alongside as serverless functions
+- Frontend uses **relative paths** for API calls (no CORS issues)
+- All requests go to the same domain
+
+**Setup in Vercel:**
+
+1. Connect GitHub repo to Vercel
+2. Set environment variables:
    ```
-3. **Frontend API Configuration** (`frontend/.env.production`):
-   ```bash
-   VITE_API_BASE=https://meia-8d2bpxwi5-meia.vercel.app
+   GROQ_API_KEY=your_key
+   MEIA_LLM_PROVIDER=groq
    ```
+3. Build command: `npm --prefix frontend ci && npm --prefix frontend run build`
+4. Output directory: `frontend/dist`
+5. Deploy!
 
-**Deployment Flow:**
+**Live:** https://meia-lab-69fu-meia.vercel.app/ ✅
 
-```
-Frontend Push → Vercel Frontend Deploys → Reads .env.production → Points to Backend
-     ↓
-Backend Push → Vercel Backend Deploys → CORS allows Frontend → Ready to receive requests
-     ↓
-Frontend calls Backend → Analysis runs → Results returned → Dashboard updates
-```
+**API Endpoints:**
+- `/api/analyze` — Start analysis job
+- `/api/jobs/{job_id}` — Get job status
+- `/docs` — Swagger UI (for debugging)
 
-**Setup Vercel Projects:**
+---
 
-Frontend project:
-```bash
-vercel --prod  # From project root (auto-deploys frontend/)
-```
+**API Calls from Frontend:**
 
-Backend project:
-```bash
-vercel --prod  # From project root (auto-deploys entire repo)
-# OR pin to backend/ directory in Vercel settings
-```
+```javascript
+// frontend/src/api.js
+const API_BASE = "";  // Relative path (same origin)
 
-**Environment Variables on Vercel Backend:**
-
-Set in Vercel project settings:
-```
-GROQ_API_KEY=your_groq_key
-OPENAI_API_KEY=your_openai_key (optional)
-MEIA_LLM_PROVIDER=groq
-MEIA_CORS_ORIGINS=https://meia-lab-69fu-meia.vercel.app,http://localhost:5173
+fetch(`${API_BASE}/api/analyze`, {...})
+// Calls: https://meia-lab-69fu-meia.vercel.app/api/analyze ✅
 ```
 
 ---

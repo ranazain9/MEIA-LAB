@@ -1,8 +1,5 @@
-// Use environment variable for backend URL, fallback to relative path for dev
-const API_BASE = import.meta.env.VITE_API_BASE || 
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-    ? '' 
-    : 'https://meia-8d2bpxwi5-meia.vercel.app');
+// Use relative path for same-host deployment (no CORS issues)
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 export async function startAnalysis({ ticker, audio, slides }) {
   const form = new FormData();
