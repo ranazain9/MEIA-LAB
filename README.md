@@ -310,11 +310,35 @@ npm run dev
 # Submit earnings call audio + slides through the UI
 ```
 
+### Verify Backend-Frontend Connection
+
+**Check if backend is running:**
+```bash
+curl http://127.0.0.1:8000/docs
+# Should return Swagger UI
+```
+
+**Check if frontend can reach backend:**
+```bash
+# Open browser DevTools (F12) → Console → Network tab
+# Submit a job and watch for /api/analyze requests
+# Should see 200 status (success) or 422 (validation error)
+```
+
+**Common Connection Issues:**
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| "Failed to fetch" | Backend not running | Start: `uvicorn backend.api.main:app --reload` |
+| CORS error | Frontend blocked by backend | Check `MEIA_CORS_ORIGINS` env var |
+| 404 on /api/* | Backend route missing | Verify FastAPI app has `/api/analyze` route |
+| Mock data only | Backend not responding | Check network tab in DevTools |
+
 ### Run with Docker
 
 ```bash
 docker-compose up
-# Backend: http://localhost:8000
+# Backend: http://localhost:8000/docs
 # Frontend: http://localhost:5173
 ```
 
@@ -339,7 +363,21 @@ pytest --cov=backend tests/
 
 ## Deployment
 
-### Railway (Cloud)
+### Multiple Deployment Options
+
+#### 1. Local Development (Recommended for Testing)
+
+```powershell
+# Terminal 1: Backend API
+uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
+
+# Terminal 2: Frontend 
+cd frontend
+npm run dev
+# http://localhost:5173 connects to http://127.0.0.1:8000
+```
+
+#### 2. Railway (Backend Only)
 
 Push to main branch; Railway auto-deploys via `railway.json` config.
 
@@ -348,29 +386,63 @@ railway login
 railway up
 ```
 
-### Vercel (Backend API)
+#### 3. Vercel (Separate Frontend & Backend Deployments)
 
-Deploy FastAPI backend:
+**MEIA-LAB uses TWO separate Vercel deployments that communicate via API:**
 
-```bash
-# Backend auto-deploys via vercel.json config
-git push origin main
+| Component | URL | Type | Role |
+|-----------|-----|------|------|
+| **Frontend** | https://meia-lab-69fu-meia.vercel.app | React/Vite | User interface, job submission |
+| **Backend** | https://meia-8d2bpxwi5-meia.vercel.app | FastAPI | Analysis pipeline, job processing |
+
+**How They Connect:**
+
+1. **Frontend** (React) sends HTTP requests to **Backend** (/api/analyze, /api/jobs/{id})
+2. **Backend CORS** allows the frontend domain:
+   ```python
+   allow_origins=["https://meia-lab-69fu-meia.vercel.app", ...]
+   ```
+3. **Frontend API Configuration** (`frontend/.env.production`):
+   ```bash
+   VITE_API_BASE=https://meia-8d2bpxwi5-meia.vercel.app
+   ```
+
+**Deployment Flow:**
+
+```
+Frontend Push → Vercel Frontend Deploys → Reads .env.production → Points to Backend
+     ↓
+Backend Push → Vercel Backend Deploys → CORS allows Frontend → Ready to receive requests
+     ↓
+Frontend calls Backend → Analysis runs → Results returned → Dashboard updates
 ```
 
-**Live Backend API:** https://meia-8d2bpxwi5-meia.vercel.app/docs (Swagger UI)
+**Setup Vercel Projects:**
 
-### Vercel (Frontend)
-
-Deploy React frontend separately:
-
+Frontend project:
 ```bash
-npm run build
-# Deploy frontend/ folder to Vercel separately
+vercel --prod  # From project root (auto-deploys frontend/)
+```
+
+Backend project:
+```bash
+vercel --prod  # From project root (auto-deploys entire repo)
+# OR pin to backend/ directory in Vercel settings
+```
+
+**Environment Variables on Vercel Backend:**
+
+Set in Vercel project settings:
+```
+GROQ_API_KEY=your_groq_key
+OPENAI_API_KEY=your_openai_key (optional)
+MEIA_LLM_PROVIDER=groq
+MEIA_CORS_ORIGINS=https://meia-lab-69fu-meia.vercel.app,http://localhost:5173
 ```
 
 ---
 
-## Docker
+## Docker Deployment
 
 Pre-built image available on Docker Hub:
 
@@ -378,7 +450,16 @@ Pre-built image available on Docker Hub:
 docker pull ranazain12/meia-lab
 docker run -p 8000:8000 -p 5173:5173 \
   -e GROQ_API_KEY=your_key \
+  -e MEIA_LLM_PROVIDER=groq \
   ranazain12/meia-lab
+```
+
+Or use Docker Compose (includes both backend + frontend):
+
+```bash
+docker-compose up
+# Backend: http://localhost:8000/docs
+# Frontend: http://localhost:5173
 ```
 
 ---
