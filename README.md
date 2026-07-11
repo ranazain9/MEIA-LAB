@@ -4,7 +4,7 @@
 
 **Use Case:** Investors, analysts, and compliance teams use MEIA to verify earnings-call claims against official filings, identify inconsistencies, and generate AI-backed verification reports in seconds.
 
-## What You Built
+## What We Built
 
 MEIA combines four specialized AI agents into a coordinated pipeline:
 
@@ -524,8 +524,11 @@ Contributions welcome! Areas of interest:
 ## Team & Credits
 
 **Built by:**
-- Rana Zain Waseem (@ranazain12) — Architecture, backend orchestration, Docker deployment
-- [Add additional team members as needed]
+- Rana Zain Waseem (@ranazain9) — Team lead & Ai engineer & backend developer | integration 
+- akhil (@akhilnirala01-dotcom) - ui/ux designer
+- rimsha talib (@rimshatalib) - frontend developer
+- vaibhav (@vaibhavcs99) - fronend developer
+- linta habib (@lintahabib2-hash) - presentation and deployment
 
 **Technologies & Sponsors:**
 - AMD Developer Challenge participant
