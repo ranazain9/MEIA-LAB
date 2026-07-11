@@ -39,9 +39,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Allow both local dev and Vercel production frontends
+CORS_ORIGINS = os.getenv(
+    "MEIA_CORS_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,https://meia-lab-69fu-meia.vercel.app"
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("MEIA_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(","),
+    allow_origins=CORS_ORIGINS.split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

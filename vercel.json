@@ -1,3 +1,12 @@
 {
-  "buildCommand": "npm --prefix frontend ci && npm --prefix frontend run build"
+  "buildCommand": "npm --prefix frontend ci && npm --prefix frontend run build",
+  "env": {
+    "VITE_API_BASE": "https://meia-8d2bpxwi5-meia.vercel.app"
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://meia-8d2bpxwi5-meia.vercel.app/api/:path*"
+    }
+  ]
 }

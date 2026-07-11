@@ -348,16 +348,25 @@ railway login
 railway up
 ```
 
-### Vercel (Frontend Only)
+### Vercel (Backend API)
 
-Deploy React frontend:
+Deploy FastAPI backend:
+
+```bash
+# Backend auto-deploys via vercel.json config
+git push origin main
+```
+
+**Live Backend API:** https://meia-8d2bpxwi5-meia.vercel.app/docs (Swagger UI)
+
+### Vercel (Frontend)
+
+Deploy React frontend separately:
 
 ```bash
 npm run build
-# Deploy frontend/ folder to Vercel
+# Deploy frontend/ folder to Vercel separately
 ```
-
-**Live Demo:** https://meia-lab-69fu-meia.vercel.app/
 
 ---
 
