@@ -4,7 +4,7 @@
   "functions": {
     "backend/api/*.py": {
       "maxDuration": 300,
-      "memory": 3008
+      "memory": 2048
     }
   }
 }
