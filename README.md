@@ -357,6 +357,21 @@ npm run build
 # Deploy frontend/ folder to Vercel
 ```
 
+**Live Demo:** https://meia-lab-69fu-meia.vercel.app/
+
+---
+
+## Docker
+
+Pre-built image available on Docker Hub:
+
+```bash
+docker pull ranazain12/meia-lab
+docker run -p 8000:8000 -p 5173:5173 \
+  -e GROQ_API_KEY=your_key \
+  ranazain12/meia-lab
+```
+
 ---
 
 ## Architecture Diagram
@@ -419,6 +434,21 @@ Contributions welcome! Areas of interest:
 - Enhanced risk classification
 - Frontend visualization improvements
 - Containerization refinements
+
+---
+
+## Team & Credits
+
+**Built by:**
+- Rana Zain Waseem (@ranazain12) — Architecture, backend orchestration, Docker deployment
+- [Add additional team members as needed]
+
+**Technologies & Sponsors:**
+- AMD Developer Challenge participant
+- Groq API for LLM inference
+- LangChain & LangGraph for multi-agent orchestration
+- FastAPI for REST API
+- React/Vite for frontend
 
 ---
 
