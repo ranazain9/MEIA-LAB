@@ -339,40 +339,36 @@ curl http://127.0.0.1:8000/docs
 
 If you see `413 Request Entity Too Large` on Vercel:
 
-```json
-// vercel.json (already configured)
-{
-  "functions": {
-    "backend/api/*.py": {
-      "maxDuration": 900,    // 15 min timeout
-      "memory": 3008         // 3GB memory
-    }
-  }
-}
-```
+**This is a Vercel payload size limit, NOT a timeout issue.**
 
-This configuration is already in the repo. If errors persist:
-- ✅ Upgrade to Vercel Pro (higher limits)
-- ✅ Compress audio files before upload
-- ✅ Use Railway instead (no size limits)
-- ✅ Use Docker locally
+Vercel free tier (Hobby plan) has strict limits:
+- ✅ Max payload: **~4.5MB** (regardless of maxDuration/memory settings)
+- ✅ This is a hard limit that cannot be increased without upgrading
+
+**Solutions:**
+1. **Vercel Pro** ($20/month) — Increases to ~50MB payload
+2. **Railway** (recommended) — Unlimited file sizes, better for AI workloads
+3. **Docker locally** — Unlimited file sizes
+4. **Compress files** — Reduce audio/PDF before upload
+
+**Do NOT expect 100MB uploads on free Vercel** — it's not possible.
 
 ---
 
-## File Size Recommendations
+## File Size by Platform
 
-| Platform | Audio | PDF Slides | Recommended |
-|----------|-------|-----------|-------------|
-| **Local** | Unlimited | Unlimited | ✅ Best for development |
-| **Vercel Free** | <20MB | <10MB | ⚠️ Limited |
-| **Vercel Pro** | <100MB | <50MB | ✅ Good for demos |
-| **Railway** | Unlimited | Unlimited | ✅ Best for production |
-| **Docker** | Unlimited | Unlimited | ✅ Best for local deployment |
+| Platform | Payload Limit | Audio | PDF | Recommended |
+|----------|---------------|-------|-----|-------------|
+| **Local** | Unlimited | Any size | Any size | ✅ Development |
+| **Docker** | Unlimited | Any size | Any size | ✅ Local deployment |
+| **Vercel Free** | ~4.5MB | <2MB | <2MB | ⚠️ **Not suitable for this project** |
+| **Vercel Pro** | ~50MB | <25MB | <25MB | ⚠️ Demos (costly) |
+| **Railway** | Unlimited | Any size | Any size | ✅ **RECOMMENDED** |
 
-**Best Practice:**
-- Use 30-60 min earnings call audio (15-30MB)
-- Use PDF slides (5-15MB)
-- Test locally first, then deploy to Railway or Vercel Pro
+**Best Practice for Submission:**
+- **Local Testing** → Use Docker or local deployment
+- **Production** → Deploy backend on Railway (unlimited)
+- **Frontend** → Can stay on Vercel (no file uploads)
 
 ---
 
